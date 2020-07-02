@@ -1,5 +1,5 @@
-(load-shared-object "/usr/lib64/libSDL2-2.0.so.0")
-(load-shared-object "/usr/lib64/libSDL2_image-2.0.so.0")
+(load-shared-object "libSDL2-2.0.so.0")
+(load-shared-object "libSDL2_image-2.0.so.0")
 
 ; A quick example:
 ; https://stackoverflow.com/questions/20579658/how-to-draw-pixels-in-sdl-2-0
