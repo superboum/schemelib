@@ -1,3 +1,10 @@
+(define (nth li pos)
+  (cond
+    ((null? li) #f)
+    ((= pos 0) (car li))
+    (#t (nth (cdr li) (- pos 1)))))
+
+
 (define (rangeinc b e)
   (cond
     ((> b e) '())
