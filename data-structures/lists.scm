@@ -10,7 +10,18 @@
     ((> b e) '())
     (#t (cons b (rangeinc (+ 1 b) e)))))
 
-(define (less-than l n) (cond ((null? l) #t) ((<= n 0) #f) (#t (less-than (cdr l) (- n 1)))))
+(define (less-than l n) 
+  (cond 
+    ((null? l) #t) 
+    ((<= n 0) #f) 
+    (#t (less-than (cdr l) (- n 1)))))
+
+(define (beginning l n)
+  (cond
+    ((null? l) '())
+    ((<= n 0) '())
+    (#t (cons (car l) (beginning (cdr l) (- n 1))))))
+
 (define (unit v) v)
 (define (aget key alist) (cdr (assoc key alist)))
 (define (aset key val alist)
