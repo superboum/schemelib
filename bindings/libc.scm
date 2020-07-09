@@ -67,15 +67,15 @@
   ((foreign-procedure
      "inet_ntop"
      (int void* (* char) int)
-     void*)
+     string)
      (domain->int af)
      src dst size))
 
 (define (htons host)
-  ((foreign-procedure "htons" (short) short) host))
+  ((foreign-procedure "htons" (unsigned-16) unsigned-16) host))
 
 (define (ntohs net)
-  ((foreign-procedure "ntohs" (short) short) net))
+  ((foreign-procedure "ntohs" (unsigned-16) unsigned-16) net))
 
 (define (setsockopt sockfd level optname optval optlen)
   ((foreign-procedure

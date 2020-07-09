@@ -1,16 +1,5 @@
 (load "../bindings/libc.scm")
-
-(define (check-err ret msg)
-  (cond
-    ((< ret 0)
-     (perror msg)
-     (raise msg))
-    (#t ret)))
-
-(define (alloc size fx)
-  (let ([v (foreign-alloc size)])
-    (fx v)
-    (foreign-free v)))
+(load "../bindings/utils.scm")
 
 (define (udpsock-create fx)
   (fx 
@@ -89,4 +78,8 @@
     (udpsock-readblock 
       sock 
       (lambda (host port buf size)
+        (printf "~a~%" size)
+        (printf "~a~%" port)
+        (printf "~a~%" host)
+        (printf "~a~%" (ftype-ref string () buf))
 ))))
