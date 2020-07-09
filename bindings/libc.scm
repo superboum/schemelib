@@ -63,11 +63,19 @@
     (domain->int af)
     src dst))
 
-(define (htons host)
+(define (inet_ntop af src dst size)
   ((foreign-procedure
-     "htons"
-     (short)
-     short) host))
+     "inet_ntop"
+     (int void* (* char) int)
+     void*)
+     (domain->int af)
+     src dst size))
+
+(define (htons host)
+  ((foreign-procedure "htons" (short) short) host))
+
+(define (ntohs net)
+  ((foreign-procedure "ntohs" (short) short) net))
 
 (define (setsockopt sockfd level optname optval optlen)
   ((foreign-procedure
@@ -85,4 +93,25 @@
      (int void* int)
      int) sockfd address address_len))
 
+(define (listen sockfd backlog)
+  ((foreign-procedure
+     "listen"
+     (int int)
+     int) sockfd backlog))
 
+(define (msgflag->int flag)
+  (case flag
+    ((MSG_DEFAULT) 0)
+))
+
+(define (recvfrom sockfd buf len msgflag src-addr addrlen)
+  ((foreign-procedure
+     "recvfrom"
+     (int void* int int (* sockaddr_in) (* int))
+     int)
+    sockfd
+    buf
+    len
+    (msgflag->int msgflag)
+    src-addr
+    addrlen))

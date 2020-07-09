@@ -51,8 +51,42 @@
           (ftype-pointer-address addr)
           (ftype-sizeof sockaddr_in))))))
 
+(define (udpsock-readblock sock fx)
+  (let* 
+    ([bufsize 1500] [straddrsize 255]
+     [buf (foreign-alloc bufsize)]
+     [straddr (make-ftype-pointer 
+                char
+                (foreign-alloc straddrsize))]
+     [addrlen (make-ftype-pointer 
+                int 
+                (foreign-alloc (ftype-sizeof int)))]
+     [addr (make-ftype-pointer 
+             sockaddr_in 
+             (foreign-alloc (ftype-sizeof sockaddr_in)))]
+     [nread (recvfrom sock buf bufsize 'MSG_DEFAULT addr addrlen)])
+
+    ; FIXME add a loop and check fx output to know if we continue
+    (fx
+      (inet_ntop 
+        'AF_INET 
+        (ftype-pointer-address
+          (ftype-&ref sockaddr_in (sin_addr) addr))
+        straddr
+        straddrsize)
+      (ntohs (ftype-ref sockaddr_in (sin_port) addr))
+      buf nread)
+
+    (foreign-free (ftype-pointer-address straddr))
+    (foreign-free (ftype-pointer-address addrlen))
+    (foreign-free (ftype-pointer-address addr))
+    (foreign-free buf)))
+
 (udpsock-create
   (lambda (sock)
     (udpsock-reuseaddr sock)
     (udpsock-bind sock "0.0.0.0" 1337)
-    (printf "~a~%" sock)))
+    (udpsock-readblock 
+      sock 
+      (lambda (host port buf size)
+))))
