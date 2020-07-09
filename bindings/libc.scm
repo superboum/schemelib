@@ -32,18 +32,27 @@
      (type->int type) 
      (protocol->int protocol)))
 
-(define-ftype
+(define-ftype 
+  [socklen_t unsigned-32]
+  [in_addr_t unsigned-32]
   [in_addr
     (struct
-      (s_addr unsigned-long))]
-
+      [addr in_addr_t])]
+  [sa_family_t unsigned-short]
+  [in_port_t unsigned-16]
+  [sockaddr_common 
+    (struct
+      [family sa_family_t])]
+  [sockaddr 
+    (struct
+      [common sockaddr_common]
+      [data (array 14 char)])]
   [sockaddr_in
     (struct
-      (sin_family short)
-      (sin_port unsigned-short)
-      (sin_addr in_addr)
-      (sin_zero (array 8 char)))]
-)
+      [common sockaddr_common]
+      [port in_port_t]
+      [addr in_addr]
+      [zero (array 8 char)])])
 
 (define (level->int flag)
    (case flag
@@ -66,7 +75,7 @@
 (define (inet_ntop af src dst size)
   ((foreign-procedure
      "inet_ntop"
-     (int void* (* char) int)
+     (int void* (* char) unsigned-32)
      string)
      (domain->int af)
      src dst size))
@@ -107,7 +116,7 @@
 (define (recvfrom sockfd buf len msgflag src-addr addrlen)
   ((foreign-procedure
      "recvfrom"
-     (int void* int int (* sockaddr_in) (* int))
+     (int void* size_t int (* sockaddr_in) (* socklen_t))
      int)
     sockfd
     buf
