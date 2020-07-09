@@ -84,5 +84,6 @@
           "host: ~a, port: ~a, size: ~a, buf: ~a~%"
           host port size 
           (char*->string
-            (make-ftype-pointer char buf)))
+            (make-ftype-pointer char buf)
+            size))
 ))))
