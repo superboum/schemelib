@@ -7,24 +7,27 @@
      (raise msg))
     (#t ret)))
 
-(define (udp-sock fx)
+(define (udpsock-create fx)
   (fx 
     (check-err 
       (socket 'AF_INET 'SOCK_DGRAM 'IPPROTO_IP)
       "Unable to init UDP socket")))
 
-(udp-sock 
+(define (udpsock-reuseaddr sock)
+  (alloc 
+    (ftype-sizeof int)
+    (lambda (activation)
+      (foreign-set! 'int activation 0 1)
+      (check-err
+        (setsockopt 
+          sock
+          'SOL_SOCKET 
+          'SO_REUSEADDR
+          activation
+          (ftype-sizeof int))
+        "Unable to set REUSE ADDRESS"))))
+
+(udpsock-create
   (lambda (s)
-    (alloc 
-      (ftype-sizeof int)
-      (lambda (activation)
-        (foreign-set! 'int activation 0 1)
-        (check-err
-          (setsockopt 
-            s 
-            'SOL_SOCKET 
-            'SO_REUSEADDR
-            activation
-            (ftype-sizeof int))
-          "Unable to set REUSE ADDRESS")))
+    (udpsock-reuseaddr s)
     (printf "~a~%" s)))
