@@ -55,10 +55,19 @@
     ((SO_REUSEADDR) #x2)
 ))
 
-(define (alloc size fx)
-  (let ([v (foreign-alloc size)])
-    (fx v)
-    (foreign-free v)))
+(define (inet_pton af src dst)
+  ((foreign-procedure
+     "inet_pton"
+     (int string void*)
+     int)
+    (domain->int af)
+    src dst))
+
+; htons
+(define (htons host)
+  ((foreign-procedure
+     "htons"
+     (
 
 (define (setsockopt sockfd level optname optval optlen)
   ((foreign-procedure
@@ -69,5 +78,11 @@
    (level->int level)
    (optname->int optname)
    optval optlen))
+
+(define (bind sockfd address address_len)
+  ((foreign-procedure
+     "bind"
+     (int void* int)
+     int) sockfd address address_len))
 
 

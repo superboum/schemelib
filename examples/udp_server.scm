@@ -7,6 +7,11 @@
      (raise msg))
     (#t ret)))
 
+(define (alloc size fx)
+  (let ([v (foreign-alloc size)])
+    (fx v)
+    (foreign-free v)))
+
 (define (udpsock-create fx)
   (fx 
     (check-err 
@@ -27,7 +32,25 @@
           (ftype-sizeof int))
         "Unable to set REUSE ADDRESS"))))
 
+(define (udpsock-bind sock addr port)
+  (alloc 
+    (ftype-sizeof sockaddr_in)
+    (lambda (addr)
+      (ftype-set! sockaddr_in (sin_family) addr (domain->int 'AF_INET))
+      (ftype-set! sockaddr_in (sin_port) addr (htons port))
+      (check-err
+        (inet_pton 
+          'AF_INET 
+          addr 
+          (ftype-&ref sockaddr_in (sin_addr) addr))
+        "Unable to convert your IP address to binary")
+      (bind
+        sock
+        addr
+        (ftype-sizeof addr)))))
+
 (udpsock-create
-  (lambda (s)
-    (udpsock-reuseaddr s)
-    (printf "~a~%" s)))
+  (lambda (sock)
+    (udpsock-reuseaddr sock)
+    (udpsock-bind sock "0.0.0.0" 1337)
+    (printf "~a~%" sock)))
