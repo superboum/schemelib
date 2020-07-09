@@ -81,5 +81,8 @@
         (printf "~a~%" size)
         (printf "~a~%" port)
         (printf "~a~%" host)
-        (printf "~a~%" (ftype-ref string () buf))
+        (printf 
+          "~a~%" 
+          (char*->string
+            (make-ftype-pointer char buf)))
 ))))
