@@ -63,11 +63,11 @@
     (domain->int af)
     src dst))
 
-; htons
 (define (htons host)
   ((foreign-procedure
      "htons"
-     (
+     (short)
+     short) host))
 
 (define (setsockopt sockfd level optname optval optlen)
   ((foreign-procedure

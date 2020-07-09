@@ -32,22 +32,24 @@
           (ftype-sizeof int))
         "Unable to set REUSE ADDRESS"))))
 
-(define (udpsock-bind sock addr port)
+(define (udpsock-bind sock host port)
   (alloc 
     (ftype-sizeof sockaddr_in)
-    (lambda (addr)
-      (ftype-set! sockaddr_in (sin_family) addr (domain->int 'AF_INET))
-      (ftype-set! sockaddr_in (sin_port) addr (htons port))
-      (check-err
-        (inet_pton 
-          'AF_INET 
-          addr 
-          (ftype-&ref sockaddr_in (sin_addr) addr))
-        "Unable to convert your IP address to binary")
-      (bind
-        sock
-        addr
-        (ftype-sizeof addr)))))
+    (lambda (raw-addr)
+      (let ([addr (make-ftype-pointer sockaddr_in raw-addr)])
+        (ftype-set! sockaddr_in (sin_family) addr (domain->int 'AF_INET))
+        (ftype-set! sockaddr_in (sin_port) addr (htons port))
+        (check-err
+          (inet_pton 
+            'AF_INET 
+            host
+            (ftype-pointer-address
+              (ftype-&ref sockaddr_in (sin_addr) addr)))
+          "Unable to convert your IP address to binary")
+        (bind
+          sock
+          (ftype-pointer-address addr)
+          (ftype-sizeof sockaddr_in))))))
 
 (udpsock-create
   (lambda (sock)
