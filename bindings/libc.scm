@@ -124,3 +124,12 @@
     (msgflag->int msgflag)
     src-addr
     addrlen))
+
+(define (sendto sockfd buf len msgflag dest-addr addrlen)
+  ((foreign-procedure
+     "sendto"
+     (int void* size_t int (* sockaddr_in) socklen_t)
+     ssize_t)
+    sockfd buf len
+    (msgflag->int msgflag)
+    dest-addr addrlen))
