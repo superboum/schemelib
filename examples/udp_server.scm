@@ -1,5 +1,6 @@
-(load "../io/udpsock.scm")
-(load "../bindings/utils.scm")
+(source-directories '("." ".."))
+(include "io/udpsock.scm")
+(include "bindings/utils.scm")
 
 (udpsock-create
   (lambda (sock)

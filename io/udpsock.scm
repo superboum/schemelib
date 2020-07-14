@@ -1,5 +1,5 @@
-(load "../bindings/libc.scm")
-(load "../bindings/utils.scm")
+(include "bindings/libc.scm")
+(include "bindings/utils.scm")
 
 (define (udpsock-create fx)
   (fx 
