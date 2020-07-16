@@ -9,10 +9,12 @@
     (udpsock-io 
       sock 
       (lambda (host port buf nread send)
-        (let* ([charbuf (make-ftype-pointer char buf)]
-              [udpmsg (char*->string charbuf nread)])
+        (let ([tx (make-transcoder (utf-8-codec) (eol-style lf)
+                  (error-handling-mode replace))]
+              [content (make-bytevector nread)])
+          (memcpy content buf nread)
           (printf 
             "host: ~a, port: ~a, nread: ~a, buf: ~a~%"
-            host port nread udpmsg)
-          (send host port (ftype-pointer-address (string->char* udpmsg charbuf nread)) nread)
+            host port nread (bytevector->string content tx))
+          (send host port buf nread)
 )))))

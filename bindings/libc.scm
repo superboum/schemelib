@@ -1,5 +1,11 @@
 (load-shared-object "libc.so.6")
 
+;; string.h
+(define (memcpy dest src n)
+  ((foreign-procedure "memcpy" (u8* u8* size_t) u8*) dest src n))
+
+;; network
+
 (define (domain->int flag)
   (case flag
     ((AF_INET) 2)
@@ -116,7 +122,7 @@
 (define (recvfrom sockfd buf len msgflag src-addr addrlen)
   ((foreign-procedure
      "recvfrom"
-     (int void* size_t int (* sockaddr_in) (* socklen_t))
+     (int u8* size_t int (* sockaddr_in) (* socklen_t))
      int)
     sockfd
     buf
@@ -128,7 +134,7 @@
 (define (sendto sockfd buf len msgflag dest-addr addrlen)
   ((foreign-procedure
      "sendto"
-     (int void* size_t int (* sockaddr_in) socklen_t)
+     (int u8* size_t int (* sockaddr_in) socklen_t)
      ssize_t)
     sockfd buf len
     (msgflag->int msgflag)

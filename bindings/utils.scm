@@ -23,7 +23,16 @@
     (fx v)
     (foreign-free v)))
 
-(define (check-err ret msg)
+(define (alloc2 l fx)
+  (let ([v (map (lambda (size) (foreign-alloc size)) l)])
+    (apply fx v)
+    (for-each (lambda (alloc) (foreign-free alloc)) v)
+))
+
+(define (check-err out)
+  (assert (= 0 out)))
+
+(define (check-perr ret msg)
   (cond
     ((< ret 0)
      (perror msg)

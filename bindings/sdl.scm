@@ -8,10 +8,6 @@
 ; https://github.com/SDL-mirror/SDL/tree/master/include
 ; https://github.com/SDL-mirror/SDL_image/blob/master/SDL_image.h
 
-;--- binding utils
-(define (check-err out)
-  (assert (= 0 out)))
-
 ;--- SDL.h
 (define (SDL_INIT-flag->int flag)
     (case flag

@@ -3,7 +3,7 @@
 
 (define (udpsock-create fx)
   (fx 
-    (check-err 
+    (check-perr 
       (socket 'AF_INET 'SOCK_DGRAM 'IPPROTO_IP)
       "Unable to init UDP socket")))
 
@@ -12,7 +12,7 @@
     (ftype-sizeof int)
     (lambda (activation)
       (foreign-set! 'int activation 0 1)
-      (check-err
+      (check-perr
         (setsockopt 
           sock
           'SOL_SOCKET 
@@ -24,7 +24,7 @@
 (define (configure-sockaddr_in! addr host port)
   (ftype-set! sockaddr_in (common family) addr (domain->int 'AF_INET))
   (ftype-set! sockaddr_in (port) addr (htons port))
-  (check-err
+  (check-perr
     (inet_pton 
             'AF_INET 
             host
@@ -52,7 +52,7 @@
 (define (udpsock-io sock fx)
   (letrec* 
     ([bufsize 1500] [straddrsize 255]
-     [buf (foreign-alloc bufsize)]
+     [buf (make-bytevector bufsize)]
      [straddr (make-ftype-pointer char
                 (foreign-alloc straddrsize))]
      [addrlen (make-ftype-pointer socklen_t 
@@ -83,5 +83,4 @@
 
     (foreign-free (ftype-pointer-address straddr))
     (foreign-free (ftype-pointer-address addrlen))
-    (foreign-free (ftype-pointer-address addr))
-    (foreign-free buf)))
+    (foreign-free (ftype-pointer-address addr))))
