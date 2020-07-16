@@ -19,15 +19,16 @@
           (f (fx+ i 1)))))))
 
 (define (alloc size fx)
-  (let ([v (foreign-alloc size)])
-    (fx v)
-    (foreign-free v)))
+  (let* ([v (foreign-alloc size)]
+         [r (fx v)])
+    (foreign-free v)
+    r))
 
 (define (alloc2 l fx)
-  (let ([v (map (lambda (size) (foreign-alloc size)) l)])
-    (apply fx v)
+  (let* ([v (map (lambda (size) (foreign-alloc size)) l)]
+         [r (apply fx v)])
     (for-each (lambda (alloc) (foreign-free alloc)) v)
-))
+    r))
 
 (define (check-err out)
   (assert (= 0 out)))
