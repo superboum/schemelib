@@ -1,12 +1,15 @@
 (source-directories '("." ".."))
 (include "bindings/utils.scm")
-(include "bindings/sodium.scm")
-
-(define-ftype [key (array 32 unsigned-8)])
+(include "crypto/core.scm")
 
 (check-err (sodium_init))
-(alloc 32 (lambda (ptr)
-  (printf "~a ~%" (ftype-pointer->sexpr (make-ftype-pointer key ptr)))
-  (randombytes_buf ptr 32)
-  (printf "~a ~%" (ftype-pointer->sexpr (make-ftype-pointer key ptr)))
-))
+
+(define (marshall v)
+  (call-with-bytevector-output-port 
+    (lambda (p) (fasl-write v p))))
+
+(let ([content (marshall "hello world")]
+      [key (randombytes-buf crypto_secretbox_KEYBYTES)])
+
+  (printf "~a ~%" content)
+  (printf "~a ~%" (crypto-extra-secretbox-open key (crypto-extra-secretbox key content))))
