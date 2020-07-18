@@ -4,7 +4,6 @@
     ((= pos 0) (car li))
     (#t (nth (cdr li) (- pos 1)))))
 
-
 (define (rangeinc b e)
   (cond
     ((> b e) '())
@@ -15,6 +14,11 @@
     ((null? l) #t) 
     ((<= n 0) #f) 
     (#t (less-than (cdr l) (- n 1)))))
+
+(define (for fx times)
+  (cond
+    ((<= times 0) '())
+    (#t (cons (fx) (for fx (- times 1))))))
 
 (define (beginning l n)
   (cond
