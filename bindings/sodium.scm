@@ -1,10 +1,13 @@
-(load-shared-object "libsodium.so")
+(load-shared-object "libsodium.so.23")
 
 (define (sodium_init)
   ((foreign-procedure "sodium_init" () int)))
 
 (define (randombytes_buf buf size)
   ((foreign-procedure "randombytes_buf" (u8* size_t) void) buf size))
+
+(define (sodium_increment n nlen)
+  ((foreign-procedure "sodium_increment" (u8* size_t) void) n nlen))
 
 (define crypto_secretbox_KEYBYTES 32)
 (define crypto_secretbox_MACBYTES 16)
