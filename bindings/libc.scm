@@ -4,6 +4,9 @@
 (define (memcpy dest src n)
   ((foreign-procedure "memcpy" (u8* u8* size_t) u8*) dest src n))
 
+(define (memcpy/u8*->void* dest src n)
+  ((foreign-procedure "memcpy" (void* u8* size_t) void*) dest src n))
+
 ;; network
 
 (define (domain->int flag)

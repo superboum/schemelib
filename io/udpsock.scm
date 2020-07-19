@@ -19,7 +19,6 @@
         "Unable to set REUSE ADDRESS"))))
 
 (define (configure-sockaddr_in! addr host port)
-  (printf "~a ~%" addr)
   (ftype-set! sockaddr_in (common family) addr (domain->int 'AF_INET))
   (ftype-set! sockaddr_in (port) addr (htons port))
   (check-perr
