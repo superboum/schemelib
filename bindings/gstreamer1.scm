@@ -1,4 +1,4 @@
-(load-shared-object "libgstreamer-1.0.so.0"))
+(load-shared-object "libgstreamer-1.0.so.0")
 
 ; Data structures
 (define (gst-message->symbol int)

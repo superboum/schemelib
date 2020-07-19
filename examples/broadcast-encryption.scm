@@ -1,6 +1,5 @@
 (source-directories '("." ".."))
-(include "bindings/utils.scm")
-(include "crypto/broadcast-encryption.scm")
+(include "schemelib.scm")
 
 (define (marshall v)
   (call-with-bytevector-output-port 

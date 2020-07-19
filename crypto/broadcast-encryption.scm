@@ -1,6 +1,3 @@
-(source-directories '("." ".."))
-(include "crypto/core.scm")
-
 ; --- BROADCAST ENCRYPTION
 ; http://cryptowiki.net/index.php?title=Broadcast_encryption
 

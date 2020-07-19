@@ -1,4 +1,4 @@
-(load-shared-object "libgobject-2.0.so"))
+(load-shared-object "libgobject-2.0.so")
 
 (define (g-object-set object property value)
   ((foreign-procedure "g_object_set" (void* string string void*) void) object property value 0))

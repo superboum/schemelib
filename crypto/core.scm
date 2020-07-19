@@ -1,7 +1,3 @@
-(source-directories '("." "../schemelib"))
-(include "bindings/libc.scm")
-(include "bindings/sodium.scm")
-
 ; --- HIGH LEVEL API FOR SODIUM
 (define (randombytes-buf size)
   (let [(v (make-bytevector size))]

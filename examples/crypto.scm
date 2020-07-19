@@ -1,6 +1,5 @@
 (source-directories '("." ".."))
-(include "bindings/utils.scm")
-(include "crypto/core.scm")
+(include "schemelib.scm")
 
 (check-err (sodium_init))
 

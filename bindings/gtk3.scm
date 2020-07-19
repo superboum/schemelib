@@ -1,4 +1,4 @@
-(load-shared-object "libgtk-3.so.0"))
+(load-shared-object "libgtk-3.so.0")
 
 (define (gtk-init argc argv)
   ((foreign-procedure "gtk_init" (ptr void*) void) argc argv))
