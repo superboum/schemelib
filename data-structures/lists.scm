@@ -45,4 +45,7 @@
 (define (dedup<=? d1 d2)
   (<= (aget 'ctr d1) (aget 'ctr d2)))
 
-
+(define (zip l1 l2)
+  (cond
+    ((or (null? l1) (null? l2)) '())
+    (#t (cons `(,(car l1) . ,(car l2)) (zip (cdr l1) (cdr l2))))))
