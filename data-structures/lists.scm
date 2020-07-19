@@ -15,6 +15,31 @@
     ((<= n 0) #f) 
     (#t (less-than (cdr l) (- n 1)))))
 
+(define (sub l n)
+  (cond
+    ((null? l) '())
+    ((<= n 0) '())
+    (#t (cons (car l) (sub (cdr l) (- n 1))))))
+
+(define (ltrim li beg end)
+  (cond
+    ((> beg 0) (ltrim (cdr li) (- beg 1) end))
+    (#t (sub li (- (length li) end)))))
+
+(define (slidewin l n)
+  (append
+    (let s ([m 1])
+      (cond
+        ((>= m n) '())
+        (#t (cons (sub l m) (s (+ m 1))))))
+
+    (let r ([iter l])
+      (cond
+        ((null? iter) '())
+        (#t (cons (sub iter n) (r (cdr iter))))))))
+
+
+
 (define (for fx times)
   (cond
     ((<= times 0) '())
