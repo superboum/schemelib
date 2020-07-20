@@ -1,3 +1,5 @@
+(define (values->list fx) (let-values [(r (fx))] r))
+
 (define (nth li pos)
   (cond
     ((null? li) #f)
