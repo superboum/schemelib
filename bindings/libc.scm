@@ -10,6 +10,9 @@
 (define (memcpy/void*->u8* dest src n)
   ((foreign-procedure "memcpy" (u8* void* size_t) u8*) dest src n))
 
+(define (memset s c n)
+  ((foreign-procedure "memset" (void* int size_t) void*) s c n))
+
 ;; network
 
 (define (domain->int flag)

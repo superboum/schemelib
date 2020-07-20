@@ -72,7 +72,19 @@
 (define (dedup<=? d1 d2)
   (<= (aget 'ctr d1) (aget 'ctr d2)))
 
-(define (zip l1 l2)
+(define (some fx l)
   (cond
-    ((or (null? l1) (null? l2)) '())
-    (#t (cons `(,(car l1) . ,(car l2)) (zip (cdr l1) (cdr l2))))))
+    ((null? l) #f)
+    ((fx (car l)) #t)
+    (#t (some fx (cdr l)))))
+
+(define (every fx l)
+  (cond
+    ((null? l) #t)
+    ((fx (car l)) (every fx (cdr l)))
+    (#t #f)))
+
+(define (zip . args)
+  (cond
+    ((some (lambda (c) (null? c)) args) '())
+    (#t (cons (map car args) (apply zip (map cdr args))))))
