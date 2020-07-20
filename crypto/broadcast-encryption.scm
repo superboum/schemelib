@@ -34,16 +34,23 @@
         [max-envelopes (floor (/ (bytevector-length cipher) be-envelope-length))])
     (let f ([i 0])
       (cond
-        ((>= i max-envelopes) #f)
+        ((>= i max-envelopes) (values #f #f))
         (#t 
           (bytevector-copy! cipher (* i be-envelope-length) envelope 0 be-envelope-length)
           (let ([key (crypto-box-seal-open envelope pk sk)])
             (cond
               ((not key) (f (+ i 1)))
               (#t
-                (let* ([secrboxstart (* (+ i 1) be-envelope-length)]
-                       [secrbox (make-bytevector (- (bytevector-length cipher) secrboxstart))])
-                  (bytevector-copy! cipher secrboxstart secrbox 0 (bytevector-length secrbox))
-                  (values key (crypto-extra-secretbox-open key secrbox))
-)))))))))
+                (let g ([j i])
+                  (cond
+                    ((>= j max-envelopes) (values key #f))
+                    (#t
+                      (let* ([secrboxstart (* (+ j 1) be-envelope-length)]
+                             [secrbox (make-bytevector (- (bytevector-length cipher) secrboxstart))]
+                             [_ (bytevector-copy! 
+                                  cipher secrboxstart secrbox 0 (bytevector-length secrbox))]
+                             [msg (crypto-extra-secretbox-open key secrbox)])
+                      (cond (msg (values key msg)) (#t (g (+ j 1))))
+))))))))))))
+
 
