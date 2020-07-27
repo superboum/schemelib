@@ -154,6 +154,12 @@
     src-addr
     addrlen))
 
+(define (send sockfd buf len flags)
+  ((foreign-procedure
+    "send"
+    (int u8* size_t int) 
+    ssize_t) sockfd buf len (msgflag->int flags)))
+
 (define (sendto sockfd buf len msgflag dest-addr addrlen)
   ((foreign-procedure
      "sendto"

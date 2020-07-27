@@ -21,6 +21,9 @@
 (define (epoll-add epfd fd flags ev)
   (assert (= 0 (epoll_ctl epfd 'EPOLL_CTL_ADD fd (set-ev ev flags fd)))))
 
+(define (epoll-evt? evt flag)
+  (not (= 0 (bitwise-and (cdr evt) (epoll-ev->int flag)))))
+
 (define (epoll-wait epfd events max-events time)
   (let ([cnt (epoll_wait epfd events max-events time)])
     (let r ([to-process cnt])

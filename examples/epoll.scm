@@ -1,4 +1,4 @@
-(source-directories '("." "./schemelib"))
+(source-directories '("." ".."))
 (include "schemelib.scm")
 
 ; tests
@@ -10,15 +10,19 @@
       (let f ()
         (for-each
           (lambda (evt)
+            (printf "evt: ~a~%" evt)
             (cond
+              ((epoll-evt? evt 'EPOLLRDHUP)
+                (printf "hup~%"))
               ((= sl (car evt)) 
                 (let ([client (nb-accept sl)])
-                  (epoll-add epfd (car client) '(EPOLLIN EPOLLET) ev)
+                  (epoll-add epfd (car client) '(EPOLLRDHUP EPOLLIN EPOLLET) ev)
                   (printf "added ~a ~%" client)))
-              ((= (epoll-ev->int 'EPOLLIN) (cdr evt))
+              ((epoll-evt? evt 'EPOLLIN)
                 (let ([bv (make-bytevector 32)])
                   (recv (car evt) bv 32 'MSG_DEFAULT)
-                  (printf "read: ~a~%" (utf8->string bv))))
+                  (printf "read: ~a~%" (utf8->string bv))
+                  (send (car evt) (string->utf8 "ok\n") 3 'MSG_DEFAULT)))
               (#t
                 (printf "oups~%"))))
           (epoll-wait epfd events max-events -1))
