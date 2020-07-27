@@ -7,6 +7,8 @@
 (include "bindings/sdl.scm")
 (include "bindings/utils.scm")
 
+(include "control/coroutines.scm")
+
 (include "crypto/broadcast-encryption.scm")
 (include "crypto/core.scm")
 
