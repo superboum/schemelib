@@ -1,5 +1,5 @@
 ; epoll
-(define (epoll-env fx)
+(define (epoll-init)
   (let*
     ([epollfd (epoll_create 1)]
      [max-events 10]
@@ -9,9 +9,12 @@
      [events (make-ftype-pointer epoll_event events-ptr)])
 
   (assert (not (= -1 epollfd)))
-  (fx epollfd ev events max-events)
-  (foreign-free ev-ptr)
-  (foreign-free events-ptr)))
+  (values epollfd ev events max-events)))
+
+(define (epoll-free epollfd ev events-ptr)
+  (close epollfd)
+  (foreign-free (ftype-pointer-address ev))
+  (foreign-free (ftype-pointer-address events)))
 
 (define (set-ev ev flags fd)
   (ftype-set! epoll_event (events) ev (epoll-ev->int flags))
@@ -20,6 +23,9 @@
 
 (define (epoll-add epfd fd flags ev)
   (assert (= 0 (epoll_ctl epfd 'EPOLL_CTL_ADD fd (set-ev ev flags fd)))))
+
+(define (epoll-del epfd fd ev)
+  (assert (= 0 (epoll_ctl epfd 'EPOLL_CTL_DEL fd ev))))
 
 (define (epoll-evt? evt flag)
   (not (= 0 (bitwise-and (cdr evt) (epoll-ev->int flag)))))

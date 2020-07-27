@@ -1,6 +1,7 @@
 (define coroutines '())
 (define locked (make-eq-hashtable))
 (define co-done "coroutines were no started correctly")
+(define co-flush-saved #f)
 
 ; private API
 (define (co-add t) 
@@ -8,6 +9,9 @@
 
 (define (co-start)
   (cond
+    ((and (null? coroutines) co-flush-saved)
+      (let ([c co-flush-saved])
+        (set! co-flush-saved #f) (c)))
     ((null? coroutines) (co-done))
     (#t
       (let ([c (car coroutines)])
@@ -40,6 +44,12 @@
 (define (co-end) 
   (call/cc 
     (lambda (k) (co-start))))
+
+(define (co-flush) 
+  (call/cc 
+    (lambda (k) 
+      (set! co-flush-saved (lambda () (k #f)))
+      (co-start))))
 
 (define (co-pause)
   (call/cc

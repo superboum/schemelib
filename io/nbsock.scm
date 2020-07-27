@@ -6,18 +6,20 @@
 (define socklen-tmp (make-ftype-pointer socklen_t (foreign-alloc (ftype-sizeof socklen_t))))
 (define int-tmp (foreign-alloc (ftype-sizeof int)))
 
+(define (nb-build-sockaddr host port)
+  (ftype-set! sockaddr_in (common family) sockaddr-in-tmp (domain->int 'AF_INET))
+  (ftype-set! sockaddr_in (port) sockaddr-in-tmp (htons port))
+  (inet_pton
+    'AF_INET
+    host
+    (ftype-&ref sockaddr_in (addr) sockaddr-in-tmp)))
 (define (nb-sock host port)
   ; create sock
   (let ([s (socket 'AF_INET '(SOCK_STREAM SOCK_NONBLOCK) 'IPPROTO_IP)])
     (assert (not (= -1 s)))
     
     ; build sock addr
-    (ftype-set! sockaddr_in (common family) sockaddr-in-tmp (domain->int 'AF_INET))
-    (ftype-set! sockaddr_in (port) sockaddr-in-tmp (htons port))
-    (inet_pton
-      'AF_INET
-      host
-      (ftype-&ref sockaddr_in (addr) sockaddr-in-tmp))
+    (nb-build-sockaddr host port)
 
     ; allow reuse
     (foreign-set! 'int int-tmp 0 1)
@@ -32,6 +34,13 @@
   (let ([s (nb-sock host port)])
     (assert (= (listen s 1024) 0))
     s))
+
+(define (nb-connect srchost desthost destport)
+  (let ([s (nb-sock srchost 0)])
+    (nb-build-sockaddr desthost destport)
+    `(,s
+      .
+      ,(connect s sockaddr-in-tmp (ftype-sizeof sockaddr_in)))))
 
 (define (nb-accept sockfd)
   (let ([nfd (accept4 sockfd sockaddr-in-tmp socklen-tmp 'SOCK_NONBLOCK)])

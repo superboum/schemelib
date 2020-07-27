@@ -3,7 +3,7 @@
 
 ; tests
 (define (test-epoll)
-  (epoll-env (lambda (epfd ev events max-events)
+  (let-values ([(epfd ev events max-events) (epoll-init)])
     (let ([sl (nb-listen "127.0.0.1" 3500)])
       (epoll-add epfd sl '(EPOLLIN EPOLLET) ev)
 
@@ -27,5 +27,7 @@
                 (printf "oups~%"))))
           (epoll-wait epfd events max-events -1))
         (f))
-))))
+
+      (epoll-free epfd ev events max-events)
+)))
 

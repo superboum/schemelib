@@ -20,3 +20,4 @@
 (include "io/udpsock.scm")
 (include "io/nbsock.scm")
 (include "io/epoll.scm")
+(include "io/coio.scm")

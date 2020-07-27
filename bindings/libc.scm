@@ -1,5 +1,21 @@
 (load-shared-object "libc.so.6")
 
+(define (orflag->int flag-bind)
+  (lambda (flag)
+    (let ([lflag (cond ((list? flag) flag) (#t (list flag)))])
+      (let f ([flag-iter lflag])
+        (cond
+          ((null? flag-iter) 0)
+          (#t
+            (bitwise-ior (cdr (assoc (car flag-iter) flag-bind)) (f (cdr flag-iter)))))))))
+
+(define errno->int (orflag->int
+  `((EAGAIN . 11)
+    (EINPROGRESS . 115))))
+
+(define (errno)
+  (foreign-ref 'int (foreign-entry "errno") 0))
+
 ;; string.h
 (define (memcpy dest src n)
   ((foreign-procedure "memcpy" (u8* u8* size_t) u8*) dest src n))
@@ -20,15 +36,6 @@
   (case flag
     ((AF_INET) 2)
 ))
-
-(define (orflag->int flag-bind)
-  (lambda (flag)
-    (let ([lflag (cond ((list? flag) flag) (#t (list flag)))])
-      (let f ([flag-iter lflag])
-        (cond
-          ((null? flag-iter) 0)
-          (#t
-            (bitwise-ior (cdr (assoc (car flag-iter) flag-bind)) (f (cdr flag-iter)))))))))
 
 (define type->int (orflag->int
   `((SOCK_STREAM . 1)
@@ -133,6 +140,12 @@
     (int (* sockaddr_in) (* socklen_t) int)
     int) sockfd addr len (type->int flags)))
 
+(define (connect sockfd addr addrlen)
+  ((foreign-procedure
+    "connect"
+    (int (* sockaddr_in) socklen_t)
+    int) sockfd addr addrlen))
+
 (define msgflag->int (orflag->int
  `((MSG_DEFAULT . 0))))
 
@@ -159,6 +172,11 @@
     "send"
     (int u8* size_t int) 
     ssize_t) sockfd buf len (msgflag->int flags)))
+
+(define (close fd)
+  ((foreign-procedure
+    "close"
+    (int) int) fd))
 
 (define (sendto sockfd buf len msgflag dest-addr addrlen)
   ((foreign-procedure
