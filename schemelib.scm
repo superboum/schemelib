@@ -18,3 +18,5 @@
 (include "io/filesystem.scm")
 (include "io/ports.scm")
 (include "io/udpsock.scm")
+(include "io/nbsock.scm")
+(include "io/epoll.scm")
