@@ -8,6 +8,8 @@
      [events-ptr (foreign-alloc (* max-events (ftype-sizeof epoll_event)))]
      [events (make-ftype-pointer epoll_event events-ptr)])
 
+  (memset ev-ptr 0 (ftype-sizeof epoll_event))
+  (memset events-ptr 0 (* max-events (ftype-sizeof epoll_event)))
   (assert (not (= -1 epollfd)))
   (values epollfd ev events max-events)))
 
@@ -17,6 +19,7 @@
   (foreign-free (ftype-pointer-address events)))
 
 (define (set-ev ev flags fd)
+  (memset (ftype-pointer-address ev) 0 (ftype-sizeof epoll_event))
   (ftype-set! epoll_event (events) ev (epoll-ev->int flags))
   (ftype-set! epoll_event (data fd) ev fd)
   ev)
@@ -32,6 +35,7 @@
 
 (define (epoll-wait epfd events max-events time)
   (let ([cnt (epoll_wait epfd events max-events time)])
+    (assert (not (= cnt -1)))
     (let r ([to-process cnt])
       (cond
         ((= to-process 0) '())
