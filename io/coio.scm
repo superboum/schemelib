@@ -6,7 +6,7 @@
 (define listen-sock #f)
 (define buffers (make-eq-hashtable))
 (define fds (make-eq-hashtable))
-(define sendhash (make-hashtable string-hash string=?))
+(define hosts (make-hashtable string-hash string=?))
 (define sendbroken '())
 (define coiobv (make-bytevector 4096))
 (define hostaddr #f)
@@ -18,14 +18,15 @@
       (co-lock 'recv) 
       (coio-recv))
     (#t
+      (printf "try to recv on ~a~%" (car fdrecv))
       (let ([res (recv (car fdrecv) coiobv (bytevector-length coiobv) 'MSG_DEFAULT)]
             [code (errno)]
             [client (hashtable-ref fds (car fdrecv) #f)])
         (cond
-          ((and (= -1 res) (= code (errno->int 'EAGAIN)))
+          ((and (= -1 res) (or (= code (errno->int 'EINPROGRESS)) (= code (errno->int 'EAGAIN))))
             (set! fdrecv (cdr fdrecv))
             (coio-recv))
-          ((= -1 res) (printf "error ~a~%" res) (raise "Unsupported error"))
+          ((= -1 res) (perror "recv failed") (printf "~a ~a~%" code (errno->int 'EAGAIN)) (raise "Unsupported error"))
           (#t 
             (let ([cbv (make-bytevector res)])
               (bytevector-copy! coiobv 0 cbv 0 res)
@@ -33,24 +34,21 @@
 )))))
 
 (define (coio-send dest msg)
-  (let ([client (hashtable-ref sendhash (aget 'host dest) #f)])
+  (let ([client (hashtable-ref hosts (aget 'host dest) '())])
     (cond
-      ((not client) #f)
+      ((null? client) #f)
       (#t 
-        (let ([r (send client msg (bytevector-length msg) 'MSG_DEFAULT)] [err (errno)])
+        (let ([r (send (car client) msg (bytevector-length msg) 'MSG_DEFAULT)] [err (errno)])
           (cond
-            ((and (= r -1) (= err (errno->int 'EAGAIN))) (co-lock client) (coio-send dest msg))
+            ((and (= r -1) (= err (errno->int 'EAGAIN))) (co-lock (car client)) (coio-send dest msg))
             ((= r -1)
-              (perror "an error occured, rebuild later")
-              (epoll-del epfd client ev)
-              (close client)
-              (hashtable-delete! sendhash (aget 'host dest))
-              (set! sendbroken (cons (aget 'host dest) sendbroken))
+              (perror "failed to send")
+              (coio-fd-broken (car client))
 )))))))
 
 (define (coio-connect dest)
   (cond
-    ((hashtable-ref sendhash (aget 'host dest) #f) #t)
+    ((not (null? (hashtable-ref hosts (aget 'host dest) '()))) #t)
     (#t
       (let* ([r (nb-connect hostaddr (aget 'host dest) hardcoded-port)]
              [err (errno)]
@@ -58,10 +56,26 @@
              [prog (and (= (cdr r) -1) (= err (errno->int 'EINPROGRESS)))])
         (cond
           ((or rdy prog)
-            (epoll-add epfd (car r) '(EPOLLOUT EPOLLET) ev)
+            (epoll-add epfd (car r) '(EPOLLOUT EPOLLIN EPOLLRDHUP EPOLLET) ev)
             (hashtable-set! fds (car r) (aget 'host dest))
-            (hashtable-set! sendhash (aget 'host dest) (car r)))
-          (#t (raise "unsupported error")))))))
+            (hashtable-update! hosts (aget 'host dest) (lambda (v) (cons (car r) v)) '()))
+          (#t (perror "failed to connect") (raise "unsupported error")))))))
+
+(define (coio-fd-broken fd)
+  (printf "~a fd is broken~%" fd)
+  (let* ([host (hashtable-ref fds fd #f)]
+         [newregfd (filter (lambda (v) (not (= v fd))) (hashtable-ref hosts host '())) ])
+    (printf "host: ~a, newregfd: ~a~%" host newregfd)
+    (cond ((null? newregfd) 
+      (printf "~a has no more fd, put in host list to reopen~%" host) 
+      (set! sendbroken (cons host sendbroken))))
+    (hashtable-set! hosts host newregfd))
+  (hashtable-delete! fds fd)
+  (epoll-del epfd fd ev)
+  (close fd)
+  (co-unlock fd)
+)
+
 
 (define (coio-event-loop host)
   (set! hostaddr host)
@@ -84,27 +98,27 @@
           (printf "evt: ~a~%" evt)
           (cond
             ((epoll-evt? evt '(EPOLLRDHUP EPOLLHUP EPOLLERR))
-              (let ([host (hashtable-ref fds (car evt) #f)])
-                (cond 
-                  ((hashtable-ref sendhash host #f)
-                    (set! sendbroken (cons host sendbroken))
-                    (hashtable-delete! sendhash host))))
-              (hashtable-delete! fds (car evt))
-              (epoll-del epfd (car evt) ev)
-              (close (car evt)))
+              (coio-fd-broken (car evt)))
 
             ; accept connections
-            ((and (epoll-evt? evt 'EPOLLIN) (= (car evt) listen-sock))
+            ((= (car evt) listen-sock)
+              (assert (epoll-evt? evt 'EPOLLIN))
               (let ([client (nb-accept (car evt))])
+                (printf "~a~%" client)
                 (hashtable-set! fds (car client) (cadr client))
-                (epoll-add epfd (car client) '(EPOLLRDHUP EPOLLIN EPOLLET) ev)))
+                (hashtable-update! hosts (cadr client) (lambda (v) (cons (car client) v)) '())
+                (epoll-add epfd (car client) '(EPOLLRDHUP EPOLLIN EPOLLOUT EPOLLET) ev)))
 
-            ((epoll-evt? evt 'EPOLLIN)
-              (set! fdrecv (cons (car evt) fdrecv))
-              (co-unlock 'recv))
-            ((epoll-evt? evt 'EPOLLOUT)
-              (co-unlock (car evt)))
+            (#t
+              (cond ((epoll-evt? evt 'EPOLLIN)
+                (printf "~a can recv~%" evt)
+                (set! fdrecv (cons (car evt) fdrecv))
+                (co-unlock 'recv)))
+              (cond
+                ((epoll-evt? evt 'EPOLLOUT)
+                  (printf "~a can send~%" evt)
+                  (co-unlock (car evt))))
 
-        ))
+        )))
         (epoll-wait epfd events max-events -1))
       (f)))))
