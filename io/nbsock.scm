@@ -45,6 +45,29 @@
       .
       ,(connect s sockaddr-in-tmp (ftype-sizeof sockaddr_in)))))
 
+(define ioctlres (foreign-alloc (ftype-sizeof unsigned-long)))
+(define getsockoptval (foreign-alloc (ftype-sizeof int)))
+(define getsockoptvallen (make-ftype-pointer socklen_t (foreign-alloc (ftype-sizeof socklen_t))))
+(define (nb-outq-free fd)
+  (foreign-set! 'unsigned-long ioctlres 0 0)
+  (cond
+    ((= (ioctl fd 'SIOCOUTQ ioctlres) -1)
+      (perror "failure:")
+      (raise "ioctl call failed")))
+
+  (foreign-set! 'int getsockoptval 0 0)
+  (ftype-set! socklen_t () getsockoptvallen (ftype-sizeof int))
+  (cond
+    ((= (getsockopt fd 'SOL_SOCKET 'SO_RCVBUF getsockoptval getsockoptvallen) -1)
+      (perror "failure: ")
+      (raise "getsockopt call failed")))
+  (assert (= (ftype-sizeof int) (ftype-ref socklen_t () getsockoptvallen)))
+
+  (- 
+    (foreign-ref 'int getsockoptval 0)
+    (foreign-ref 'unsigned-long ioctlres 0))
+)
+
 (define (nb-accept sockfd)
   (memset (ftype-pointer-address sockaddr-in-tmp) 0 (ftype-sizeof sockaddr_in))
   (ftype-set! socklen_t () socklen-tmp (ftype-sizeof sockaddr_in))

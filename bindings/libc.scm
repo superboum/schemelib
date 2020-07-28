@@ -11,6 +11,7 @@
 
 (define errno->int (orflag->int
   `((EAGAIN . 11)
+    (EINTR . 4)
     (EINPROGRESS . 115))))
 
 (define (errno)
@@ -28,6 +29,17 @@
 
 (define (memset s c n)
   ((foreign-procedure "memset" (void* int size_t) void*) s c n))
+
+
+(define ioctlreq->int (orflag->int
+  `((SIOCOUTQ . 21521)
+    (SIOCINQ . 21531))))
+
+(define (ioctl fd req res)
+  ((foreign-procedure
+    "ioctl"
+    (int unsigned-long void*)
+    int) fd (ioctlreq->int req) res))
 
 ;; network
 (define INET_ADDRSTRLEN 16)
@@ -88,7 +100,8 @@
   `((SOL_SOCKET . #x1))))
 
 (define optname->int (orflag->int
-  `((SO_REUSEADDR . #x2))))
+  `((SO_REUSEADDR . #x2)
+    (SO_RCVBUF . #x8))))
 
 (define (inet_pton af src dst)
   ((foreign-procedure
@@ -121,6 +134,16 @@
    (level->int level)
    (optname->int optname)
    optval optlen))
+
+(define (getsockopt sockfd level optname optval optlen)
+  ((foreign-procedure
+    "getsockopt"
+    (int int int void* (* socklen_t))
+    int) 
+    sockfd 
+    (level->int level)
+    (optname->int optname)
+    optval optlen))
 
 (define (bind sockfd address address_len)
   ((foreign-procedure

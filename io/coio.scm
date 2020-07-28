@@ -7,6 +7,7 @@
 (define buffers (make-eq-hashtable))
 (define fds (make-eq-hashtable))
 (define hosts (make-hashtable string-hash string=?))
+(define recvbytes (make-eq-hashtable))
 (define sendbroken '())
 (define coiobv (make-bytevector 4096))
 (define hostaddr #f)
@@ -38,6 +39,7 @@
     (cond
       ((null? client) #f)
       (#t 
+        (printf "free: ~a~%" (nb-outq-free (car client)))
         (let ([r (send (car client) msg (bytevector-length msg) 'MSG_DEFAULT)] [err (errno)])
           (cond
             ((and (= r -1) (= err (errno->int 'EAGAIN))) (co-lock (car client)) (coio-send dest msg))

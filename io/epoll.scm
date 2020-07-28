@@ -35,15 +35,21 @@
 
 (define (epoll-wait epfd events max-events time)
   (let ([cnt (epoll_wait epfd events max-events time)])
-    (assert (not (= cnt -1)))
-    (let r ([to-process cnt])
-      (cond
-        ((= to-process 0) '())
-        (#t
-          (cons
-            `(,(ftype-ref epoll_event (data fd) events (- to-process 1))
-              .
-              ,(ftype-ref epoll_event (events) events (- to-process 1)))
-             (r (- to-process 1)))
-)))))
+    (cond 
+      ((= cnt -1) (= (errno) (errno->int 'EINTR))
+        (printf "Interrupted syscall, do nothing~%") '())
+      ((= cnt -1)
+        (perror "epoll returned -1")
+        (raise "errno not supported"))
+      (#t
+        (let r ([to-process cnt])
+          (cond
+            ((= to-process 0) '())
+            (#t
+              (cons
+                `(,(ftype-ref epoll_event (data fd) events (- to-process 1))
+                  .
+                  ,(ftype-ref epoll_event (events) events (- to-process 1)))
+                 (r (- to-process 1)))
+)))))))
 
