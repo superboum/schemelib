@@ -31,15 +31,24 @@
 (define (co-lock lname)
   (call/cc
     (lambda (k)
-      (hashtable-set! locked lname (lambda () (k #f)))
+      (hashtable-update! 
+        locked 
+        lname 
+        (lambda (v) (cons (lambda () (k #f)) v))
+        '())
       (co-start)
 )))
 
 (define (co-unlock lname)
-  (let ([f (hashtable-ref locked lname #f)])
-    (cond (f 
-        (co-add f)
-        (hashtable-delete! locked lname)))))
+  (let ([f (hashtable-ref locked lname '())])
+    (cond 
+      ((not (null? f)) 
+        (co-add (car f))
+        (hashtable-update! 
+          locked 
+          lname
+          (lambda (v) (cdr v))
+          '())))))
 
 (define (co-end) 
   (call/cc 

@@ -94,6 +94,20 @@
   (epoll-del epfd fd ev)
   (close fd))
 
+; timers
+(define timerl (make-eq-hashtable))
+(define (coio-sleep time)
+  (let ([tfd (nb-timer time)])
+    (assert (not (= tfd -1)))
+    (epoll-add epfd tfd '(EPOLLIN EPOLLET) ev)
+    (hashtable-set! timerl tfd #t)
+    (co-lock tfd)))
+  
+(define (coio-timer time fx)
+  (co-thunk (lambda ()
+    (coio-sleep time)
+    (fx))))
+
 ; handle send here
 (define fds-send-buffer (make-eq-hashtable))
 
@@ -226,6 +240,7 @@
      [(fd) (nb-listen hostaddr hardcoded-port)]
      [(recofd) (nb-timer 5)])
 
+    (assert (not (or (= fd -1) (= recofd -1))))
     (epoll-add epfd2 fd '(EPOLLIN EPOLLET) ev2)
     (epoll-add epfd2 recofd '(EPOLLIN EPOLLET) ev2)
     (set! listen-sock fd)
@@ -250,9 +265,16 @@
               (assert (epoll-evt? evt 'EPOLLIN))
               (coio-accept (car evt)))
 
+            ; restart connections
             ((= (car evt) reco-sock)
              (nb-timer-ack (car evt))
              (coio-reconnect))
+ 
+            ; handle timers
+            ((hashtable-ref timerl (car evt) #f)
+              (hashtable-delete! timerl (car evt))
+              (close (car evt))
+              (co-unlock (car evt)))
 
             ; handle IO
             ((epoll-evt? evt 'EPOLLIN)

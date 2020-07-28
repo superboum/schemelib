@@ -6,6 +6,7 @@
     (coio-connect `((host . ,dest)))
     (coio-send `((host . ,dest)) (make-bytevector 15 7))
     (coio-send `((host . ,dest)) #vu8(2 0 0 0))
+    (coio-timer 3 (lambda () (printf "hello~%")))
   ))
 
   (co-thunk (lambda ()
