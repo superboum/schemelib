@@ -30,6 +30,15 @@
 (define (memset s c n)
   ((foreign-procedure "memset" (void* int size_t) void*) s c n))
 
+;;io
+
+(define (cread fd buf count)
+  ((foreign-procedure
+    "read"
+    (int u8* size_t) 
+    ssize_t) fd buf count))
+
+;;ioctl
 
 (define ioctlreq->int (orflag->int
   `((SIOCOUTQ . 21521)
@@ -209,6 +218,35 @@
     sockfd buf len
     (msgflag->int msgflag)
     dest-addr addrlen))
+
+(define clock->int (orflag->int
+  '((CLOCK_MONOTONIC . 1))))
+
+(define timflag->int (orflag->int
+  '((TFD_NONBLOCK . 2048))))
+
+(define (timerfd_create clockid flags)
+  ((foreign-procedure
+    "timerfd_create"
+    (int int) int) (clock->int clockid) (timflag->int flags)))
+
+(define-ftype
+  [time_t int]
+  [timespec
+    (struct
+      [tv_sec time_t]
+      [tv_nsec long])]
+
+  [itimerspec
+    (struct
+      [it_interval timespec]
+      [it_value timespec])])
+
+(define (timerfd_settime fd flags new_value old_value)
+  ((foreign-procedure
+    "timerfd_settime"
+    (int int (* itimerspec) (* itimerspec))
+    int) fd flags new_value old_value))
 
 ;--- epoll
 (define-ftype 
