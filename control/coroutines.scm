@@ -42,6 +42,15 @@
       (co-start)
 )))
 
+(define (co-unlock-all lname)
+   (let ([f (hashtable-ref locked lname '())])
+    (cond 
+      ((not (null? f)) 
+        (for-each (lambda (fx) (co-add fx)) f)
+        (hashtable-delete! locked lname))
+)))
+ 
+
 (define (co-unlock lname)
   (let ([f (hashtable-ref locked lname '())])
     (cond 

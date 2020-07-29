@@ -126,30 +126,24 @@
   (close fd))
 
 ; timers
-(define timerl (make-eq-hashtable))
 (define (coio-sleep time)
-  (let ([tfd (nb-timer time)])
-    (assert (not (= tfd -1)))
-    (epoll-add epfd tfd '(EPOLLIN EPOLLET) ev)
-    (hashtable-set! timerl tfd #t)
-    (co-lock tfd 'low)
-    (hashtable-delete! timerl tfd)
-    (close tfd)))
+  (cond
+    ((<= time 0) #t)
+    (#t
+      (co-lock 'timer 'low)
+      (coio-sleep (- time 1)))))
   
-(define (coio-timer time fx)
-  (let ([tfd (nb-timer time)])
-    (assert (not (= tfd -1)))
-    (epoll-add epfd tfd '(EPOLLIN EPOLLET) ev)
-    (hashtable-set! timerl tfd 'active)
-    (co-thunk 
-      (lambda () 
-        (co-lock tfd 'low) 
-        (if (eq? 'active (hashtable-ref timerl tfd #f)) (fx))
-        (hashtable-delete! timerl tfd)
-        (close tfd)))
-    (lambda ()
-      (hashtable-set! timerl tfd 'stop)
-      (co-unlock tfd))))
+(define (coio-interval time fx repeat?)
+  (let ([stop? #f])
+    (co-thunk (lambda ()
+      (let f ([rem time]) 
+        (cond
+          (stop? #t)
+          ((<= rem 0) (fx) (if repeat? (f time)))
+          (#t (co-lock 'timer 'low) (f (- rem 1)))))))
+    (lambda () (set! stop? #t))))
+
+(define (coio-timer time fx) (coio-interval time fx #f))
 
 ; handle send here
 (define fds-send-buffer (make-eq-hashtable))
@@ -169,7 +163,7 @@
       (#t
         (let ([r (send fd buff (bytevector-length buff) 'MSG_DEFAULT)])
           (case (iostatus r)
-           ((not-ready) #t)
+           ((not-ready)  #t)
            ((fatal) (coio-fd-broken fd))
            ((ok)
              ;(printf "sent ~a bytes to ~a fd~%" r fd)
@@ -209,7 +203,7 @@
             (coio-connect dest) 
             (coio-send dest msg prio))))
       ((hashtable-ref fds-send-buffer (car fd) #f) 
-        (printf "send lock~%")
+        (printf "send lock ~a~%" fd)
         (co-lock (car fd) prio)
         (coio-send dest msg prio))
       (#t 
@@ -270,7 +264,7 @@
       (let ([remaining (nfo-remaining nfo)])
         (cond
           ((= remaining 0) 
-            (set! fdrecv (cons fd fdrecv))
+            (set! fdrecv (append fdrecv (list fd)))
             (co-unlock 'recv)
             `(full ,(nfo-aggregate nfo)))
           (#t
@@ -292,7 +286,7 @@
   (let*-values 
     ([(epfd2 ev2 events2 max-events2) (epoll-init)]
      [(fd) (nb-listen hostaddr hardcoded-port)]
-     [(recofd) (nb-timer 60)])
+     [(recofd) (nb-timer 1)])
 
     (assert (not (or (= fd -1) (= recofd -1))))
     (epoll-add epfd2 fd '(EPOLLIN EPOLLET) ev2)
@@ -304,13 +298,17 @@
     (set! events events2)
     (set! max-events max-events2))
 
+  (coio-interval 10 (lambda () (coio-reconnect)) #t)
+
   (co-thunk (lambda () 
     (let f ()
       (co-flush) ; exhaust all coroutines before looping
-      (for-each (lambda (ffd) (read-buff ffd)) (vector->list (hashtable-keys fds)))
+      ;(for-each (lambda (ffd) (read-buff ffd)) (vector->list (hashtable-keys fds)))
+      ;(for-each (lambda (ffd) (send-buff ffd)) (vector->list (hashtable-keys fds)))
       ;(printf "tosend: ~a~%" (hashtable-keys fds-send-buffer))
+      ;(printf "recv: ~a~%" (hashtable-values fds-recv-buffer))
       ;(printf "locked: ~a~%" (hashtable-keys locked))
-      ;(printf "hosts: ~a~%" (hashtable-keys hosts))
+      (printf "epoll wait~%") 
       (for-each 
         (lambda (evt)
           ;(printf "evt: ~a~%" evt)
@@ -323,23 +321,23 @@
               (assert (epoll-evt? evt 'EPOLLIN))
               (coio-accept (car evt)))
 
-            ; restart connections
+            ; the general timer that handle all timers
             ((= (car evt) reco-sock)
              (nb-timer-ack (car evt))
-             (coio-reconnect))
+             (co-unlock-all 'timer))
  
-            ; handle timers
-            ((hashtable-ref timerl (car evt) #f)
-              (co-unlock (car evt)))
 
             ; handle IO
-            ((epoll-evt? evt 'EPOLLIN)
-              (if (hashtable-ref pristine (car evt) #f) (coio-handle-pristine (car evt)))
-              (read-buff (car evt)))
-
-            ((epoll-evt? evt 'EPOLLOUT)
-              (if (hashtable-ref pristine (car evt) #f) (coio-handle-pristine (car evt)))
-              (send-buff (car evt)))
+            (#t
+              (cond ((epoll-evt? evt 'EPOLLIN)
+                ;(printf "READ RDY ~a~%" (car evt))
+                (if (hashtable-ref pristine (car evt) #f) (coio-handle-pristine (car evt)))
+                (read-buff (car evt))))
+ 
+              (cond ((epoll-evt? evt 'EPOLLOUT)
+                ;(printf "WRITE RDY ~a~%" (car evt))
+                (if (hashtable-ref pristine (car evt) #f) (coio-handle-pristine (car evt)))
+                (send-buff (car evt)))))
         ))
         (epoll-wait epfd events max-events -1))
       (f)))))
