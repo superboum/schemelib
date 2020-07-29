@@ -270,7 +270,7 @@
           (#t
             (let-values ([(status nread data) (chunk-read fd remaining)])
               (cond
-                ((eq? status 'not-ready) nfo)
+                ((eq? status 'not-ready)  nfo)
                 ((eq? status 'ok) (build-nfo fd (append nfo (list data))))
                 ((eq? status 'fatal) (coio-fd-broken fd) '(filling))))))))))
 (define (read-buff fd)
@@ -303,12 +303,11 @@
   (co-thunk (lambda () 
     (let f ()
       (co-flush) ; exhaust all coroutines before looping
-      ;(for-each (lambda (ffd) (read-buff ffd)) (vector->list (hashtable-keys fds)))
-      ;(for-each (lambda (ffd) (send-buff ffd)) (vector->list (hashtable-keys fds)))
+      (for-each (lambda (ffd) (read-buff ffd)) (vector->list (hashtable-keys fds)))
+      (for-each (lambda (ffd) (send-buff ffd)) (vector->list (hashtable-keys fds)))
       ;(printf "tosend: ~a~%" (hashtable-keys fds-send-buffer))
       ;(printf "recv: ~a~%" (hashtable-values fds-recv-buffer))
       ;(printf "locked: ~a~%" (hashtable-keys locked))
-      (printf "epoll wait~%") 
       (for-each 
         (lambda (evt)
           ;(printf "evt: ~a~%" evt)
