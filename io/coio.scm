@@ -8,6 +8,29 @@
 (define hostaddr #f)
 (define hardcoded-port 3500)
 
+; ip <-> idx
+(define (baseip) (bytevector-copy #vu8(127 0 1 0)))
+(define inaddrbuf (foreign-alloc (ftype-sizeof in_addr)))
+(define (idx->ip idx)
+  (let ([newip (baseip)])
+    (bytevector-u32-set! 
+      newip
+      0
+      (+
+        (bytevector-u32-ref newip 0 'big)
+        idx)
+      'big)
+
+    (memcpy/u8*->void* inaddrbuf newip (bytevector-length newip))
+    (inet-ntop (make-ftype-pointer in_addr inaddrbuf))))
+(define (ip->idx host)
+  (let ([ipbv (make-bytevector 4)])
+    (inet_pton 'AF_INET host (make-ftype-pointer in_addr inaddrbuf))
+    (memcpy/void*->u8* ipbv inaddrbuf (bytevector-length ipbv))
+    (-
+     (bytevector-u32-ref ipbv 0 'big)
+     (bytevector-u32-ref (baseip) 0 'big))))
+
 ; generic
 (define (iostatus res)
   (cond
@@ -83,7 +106,7 @@
     (printf "host: ~a, newregfd: ~a~%" host newregfd)
     (cond ((and (null? newregfd) (not (some (lambda (h) (string=? host h)) sendbroken)))
       (printf "~a has no more fd, put in host list to reopen~%" host) 
-      (set! sendbroken (cons host sendbroken))))
+      (set! sendbroken (append sendbroken (list host)))))
     (hashtable-set! hosts host newregfd))
   (set! fdrecv (filter (lambda (cfd) (not (= cfd fd))) fdrecv))
   (hashtable-delete! fds fd)
@@ -125,7 +148,6 @@
       ((not buff) #t)
       (#t
         (let ([r (send fd buff (bytevector-length buff) 'MSG_DEFAULT)])
-          (printf "buff ~a~%" r)
           (case (iostatus r)
            ((not-ready) #t)
            ((fatal) (coio-fd-broken fd))
@@ -135,6 +157,7 @@
                 [rem (make-bytevector remlen)])
               (cond
                 ((= remlen 0)
+                  (printf "buff sent~%")
                   (hashtable-delete! fds-send-buffer fd)
                   (co-unlock fd))
                 (#t
@@ -158,11 +181,18 @@
   (let* ([fd (hashtable-ref hosts (aget 'host dest) '())]
          [out (encapsulate msg)])
     (cond
-      ((null? fd) #f)
+      ((null? fd)
+        (cond
+          ((some (lambda (v) (string=? (aget 'host dest) v)) sendbroken)
+            #f)
+          (#t 
+            (coio-connect dest) 
+            (coio-send dest msg))))
       ((hashtable-ref fds-send-buffer (car fd) #f) 
         (co-lock (car fd))
         (coio-send dest msg))
       (#t 
+        (printf "buff scheduled ~%")
         (hashtable-set! fds-send-buffer (car fd) out)
         (send-buff (car fd))))))
 
@@ -182,7 +212,7 @@
         (set! fdrecv (cdr fdrecv))
         (hashtable-delete! fds-recv-buffer fd)
         (read-buff fd)
-        (values `((host . ,client)) (cdr msg))
+        (values `((host . ,client) (idx . ,(ip->idx client))) (cadr msg))
 ))))
 
 (define (chunk-read fd len)
@@ -255,7 +285,7 @@
       (co-flush) ; exhaust all coroutines before looping
       (for-each 
         (lambda (evt)
-          (printf "evt: ~a~%" evt)
+          ;(printf "evt: ~a~%" evt)
           (cond
             ((epoll-evt? evt '(EPOLLRDHUP EPOLLHUP EPOLLERR))
               (coio-fd-broken (car evt)))

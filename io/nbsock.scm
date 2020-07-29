@@ -85,15 +85,18 @@
   (cread fd nb-timer-ticks (bytevector-length nb-timer-ticks))
   (bytevector-u64-ref nb-timer-ticks 0 (native-endianness)))
 
+(define (inet-ntop in_addr)
+  (inet_ntop 'AF_INET in_addr ipv4str-tmp INET_ADDRSTRLEN)
+  (char*->string ipv4str-tmp INET_ADDRSTRLEN))
+
 (define (nb-accept sockfd)
   (memset (ftype-pointer-address sockaddr-in-tmp) 0 (ftype-sizeof sockaddr_in))
   (ftype-set! socklen_t () socklen-tmp (ftype-sizeof sockaddr_in))
   (let ([nfd (accept4 sockfd sockaddr-in-tmp socklen-tmp 'SOCK_NONBLOCK)])
     (assert (not (= -1 nfd)))
     (assert (= (ftype-sizeof sockaddr_in) (ftype-ref socklen_t () socklen-tmp)))
-    (inet_ntop 'AF_INET (ftype-&ref sockaddr_in (addr) sockaddr-in-tmp) ipv4str-tmp INET_ADDRSTRLEN)
     `(,nfd
-      ,(char*->string ipv4str-tmp INET_ADDRSTRLEN)
+      ,(inet-ntop (ftype-&ref sockaddr_in (addr) sockaddr-in-tmp))
       ,(ntohs (ftype-ref sockaddr_in (port) sockaddr-in-tmp)))))
 
 
