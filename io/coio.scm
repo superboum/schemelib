@@ -50,7 +50,14 @@
 (define connectready '())
 
 (define (coio-accept fd) 
-  (coio-fd-register (nb-accept fd)))
+  (let* ([a (nb-accept fd)] [s (iostatus (car a))])
+    (case s
+      ((fatal) (perror "errno") (raise "we should not fail accept()"))
+      ((not-ready) #t)
+      ((ok)
+        ;(printf "[coio-accept] ~a -> ~a:~a = fd ~a~%" hostaddr (cadr a) (caddr a) (car a))
+        (coio-fd-register a) 
+        (coio-accept fd)))))
 
 (define (coio-connect dest)
   (cond
@@ -60,6 +67,7 @@
              [err (errno)]
              [rdy (= (cdr r) 0)]
              [prog (and (= (cdr r) -1) (= err (errno->int 'EINPROGRESS)))])
+        ;(printf "[coio-connect] ~a -> ~a:~a = fd ~a~%" hostaddr (aget 'host dest) hardcoded-port r)
         (cond
           ((or rdy prog) (coio-fd-register `(,(car r) ,(aget 'host dest))))
           (#t (perror "failed to connect") (raise "unsupported error")))
@@ -78,7 +86,7 @@
   (co-unlock 'connectready))
 
 (define (coio-ready)
-  (printf "loop: ~a~%" connectready)
+  ;(printf "loop: ~a~%" connectready)
   (cond
     ((null? connectready) (co-lock 'connectready) (coio-ready))
     (#t 
@@ -143,7 +151,6 @@
     out))
 
 (define (send-buff fd)
-  (printf "~a~%" (hashtable-values fds-send-buffer))
   (let ([buff (hashtable-ref fds-send-buffer fd #f)])
     (cond 
       ((not buff) #t)
@@ -153,6 +160,7 @@
            ((not-ready) #t)
            ((fatal) (coio-fd-broken fd))
            ((ok)
+             ;(printf "sent ~a bytes to ~a fd~%" r fd)
              (let* 
                ([remlen (- (bytevector-length buff) r)]
                 [rem (make-bytevector remlen)])
@@ -189,9 +197,11 @@
             (coio-connect dest) 
             (coio-send dest msg))))
       ((hashtable-ref fds-send-buffer (car fd) #f) 
+        ;(printf "send lock~%")
         (co-lock (car fd))
         (coio-send dest msg))
       (#t 
+        ;(printf "~a will send ~a bytes to ~a (fd ~a)~%" hostaddr (bytevector-length out) (aget 'host dest) (car fd))
         (hashtable-set! fds-send-buffer (car fd) out)
         (send-buff (car fd))))))
 
@@ -217,6 +227,7 @@
 (define (chunk-read fd len)
   (let* ([r (recv fd coiobv len 'MSG_DEFAULT)]
          [bv (make-bytevector (max r 0))])
+    (printf "~a read ~a bytes (~a) from ~a (~a fd)~%" hostaddr r (iostatus r) (hashtable-ref fds fd #f)  fd)
     (bytevector-copy! coiobv 0 bv 0 (bytevector-length bv))
     (values (iostatus r) r bv)))
 
@@ -267,7 +278,7 @@
   (let*-values 
     ([(epfd2 ev2 events2 max-events2) (epoll-init)]
      [(fd) (nb-listen hostaddr hardcoded-port)]
-     [(recofd) (nb-timer 5)])
+     [(recofd) (nb-timer 60)])
 
     (assert (not (or (= fd -1) (= recofd -1))))
     (epoll-add epfd2 fd '(EPOLLIN EPOLLET) ev2)
@@ -282,6 +293,10 @@
   (co-thunk (lambda () 
     (let f ()
       (co-flush) ; exhaust all coroutines before looping
+      (for-each (lambda (ffd) (read-buff ffd)) (vector->list (hashtable-keys fds)))
+      ;(printf "tosend: ~a~%" (hashtable-keys fds-send-buffer))
+      ;(printf "locked: ~a~%" (hashtable-keys locked))
+      ;(printf "hosts: ~a~%" (hashtable-keys hosts))
       (for-each 
         (lambda (evt)
           ;(printf "evt: ~a~%" evt)

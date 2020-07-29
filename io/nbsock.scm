@@ -93,10 +93,13 @@
   (memset (ftype-pointer-address sockaddr-in-tmp) 0 (ftype-sizeof sockaddr_in))
   (ftype-set! socklen_t () socklen-tmp (ftype-sizeof sockaddr_in))
   (let ([nfd (accept4 sockfd sockaddr-in-tmp socklen-tmp 'SOCK_NONBLOCK)])
-    (assert (not (= -1 nfd)))
-    (assert (= (ftype-sizeof sockaddr_in) (ftype-ref socklen_t () socklen-tmp)))
-    `(,nfd
-      ,(inet-ntop (ftype-&ref sockaddr_in (addr) sockaddr-in-tmp))
-      ,(ntohs (ftype-ref sockaddr_in (port) sockaddr-in-tmp)))))
+    ;(assert (not (= -1 nfd)))
+    ;(assert (= (ftype-sizeof sockaddr_in) (ftype-ref socklen_t () socklen-tmp)))
+    (cond
+      ((= -1 nfd) `(,nfd #f #f))
+      (#t
+       `(,nfd
+         ,(inet-ntop (ftype-&ref sockaddr_in (addr) sockaddr-in-tmp))
+         ,(ntohs (ftype-ref sockaddr_in (port) sockaddr-in-tmp)))))))
 
 

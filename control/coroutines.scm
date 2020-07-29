@@ -44,11 +44,10 @@
     (cond 
       ((not (null? f)) 
         (co-add (car f))
-        (hashtable-update! 
-          locked 
-          lname
-          (lambda (v) (cdr v))
-          '())))))
+        (cond
+          ((null? (cdr f)) (hashtable-delete! locked lname))
+          (#t (hashtable-set! locked lname (cdr f))))
+))))
 
 (define (co-end) 
   (call/cc 

@@ -87,8 +87,8 @@
   [socklen_t unsigned-32]
   [in_addr_t unsigned-32]
   [in_addr
-    (struct
-      [addr in_addr_t])]
+    (packed (struct
+      [addr in_addr_t]))]
   [sa_family_t unsigned-short]
   [in_port_t unsigned-16]
   [sockaddr_common 
@@ -99,11 +99,11 @@
       [common sockaddr_common]
       [data (array 14 char)])]
   [sockaddr_in
-    (struct
+    (packed (struct
       [common sockaddr_common]
       [port in_port_t]
       [addr in_addr]
-      [zero (array 8 char)])])
+      [zero (array 8 char)]))])
 
 (define level->int (orflag->int
   `((SOL_SOCKET . #x1))))
@@ -238,9 +238,10 @@
       [tv_nsec long])]
 
   [itimerspec
-    (struct
-      [it_interval timespec]
-      [it_value timespec])])
+    (packed 
+      (struct
+        [it_interval timespec]
+        [it_value timespec]))])
 
 (define (timerfd_settime fd flags new_value old_value)
   ((foreign-procedure
