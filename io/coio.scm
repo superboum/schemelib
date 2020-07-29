@@ -132,12 +132,24 @@
     (assert (not (= tfd -1)))
     (epoll-add epfd tfd '(EPOLLIN EPOLLET) ev)
     (hashtable-set! timerl tfd #t)
-    (co-lock tfd)))
+    (co-lock tfd)
+    (hashtable-delete! timerl tfd)
+    (close tfd)))
   
 (define (coio-timer time fx)
-  (co-thunk (lambda ()
-    (coio-sleep time)
-    (fx))))
+  (let ([tfd (nb-timer time)])
+    (assert (not (= tfd -1)))
+    (epoll-add epfd tfd '(EPOLLIN EPOLLET) ev)
+    (hashtable-set! timerl tfd 'active)
+    (co-thunk 
+      (lambda () 
+        (co-lock tfd) 
+        (if (eq? 'active (hashtable-ref timerl tfd #f)) (fx))
+        (hashtable-delete! timerl tfd)
+        (close tfd)))
+    (lambda ()
+      (hashtable-set! timerl tfd 'stop)
+      (co-unlock tfd))))
 
 ; handle send here
 (define fds-send-buffer (make-eq-hashtable))
@@ -316,8 +328,6 @@
  
             ; handle timers
             ((hashtable-ref timerl (car evt) #f)
-              (hashtable-delete! timerl (car evt))
-              (close (car evt))
               (co-unlock (car evt)))
 
             ; handle IO
