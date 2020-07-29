@@ -258,9 +258,10 @@
       [u64 unsigned-64])]
 
   [epoll_event
-    (struct
-      [events unsigned-32]
-      [data epoll_data])])
+    (packed
+      (struct
+        [events unsigned-32]
+        [data epoll_data]))])
 
 (define (epoll_create size)
   ((foreign-procedure

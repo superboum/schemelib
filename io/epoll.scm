@@ -34,6 +34,7 @@
   (not (= 0 (bitwise-and (cdr evt) (epoll-ev->int flag)))))
 
 (define (epoll-wait epfd events max-events time)
+  (memset (ftype-pointer-address events) 0 (* max-events (ftype-sizeof epoll_event)))
   (let ([cnt (epoll_wait epfd events max-events time)])
     (cond 
       ((= cnt -1) (= (errno) (errno->int 'EINTR))

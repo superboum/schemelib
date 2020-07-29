@@ -143,6 +143,7 @@
     out))
 
 (define (send-buff fd)
+  (printf "~a~%" (hashtable-values fds-send-buffer))
   (let ([buff (hashtable-ref fds-send-buffer fd #f)])
     (cond 
       ((not buff) #t)
@@ -157,7 +158,6 @@
                 [rem (make-bytevector remlen)])
               (cond
                 ((= remlen 0)
-                  (printf "buff sent~%")
                   (hashtable-delete! fds-send-buffer fd)
                   (co-unlock fd))
                 (#t
@@ -192,7 +192,6 @@
         (co-lock (car fd))
         (coio-send dest msg))
       (#t 
-        (printf "buff scheduled ~%")
         (hashtable-set! fds-send-buffer (car fd) out)
         (send-buff (car fd))))))
 
