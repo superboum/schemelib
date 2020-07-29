@@ -75,7 +75,7 @@
 (define (nb-timer secs)
   (memset (ftype-pointer-address nb-timer-tmp-new) 0 (ftype-sizeof itimerspec))
   (let ([fd (timerfd_create 'CLOCK_MONOTONIC 'TFD_NONBLOCK)])
-    (assert (not (= -1 fd)))
+    (cond ((= -1 fd) (perror "errno") (raise "unsupported error")))
     (ftype-set! itimerspec (it_interval tv_sec) nb-timer-tmp-new secs)
     (ftype-set! itimerspec (it_value tv_sec) nb-timer-tmp-new secs)
     (assert (= (timerfd_settime fd 0 nb-timer-tmp-new nb-timer-tmp-old) 0))

@@ -88,7 +88,7 @@
 (define (coio-ready)
   ;(printf "loop: ~a~%" connectready)
   (cond
-    ((null? connectready) (co-lock 'connectready) (coio-ready))
+    ((null? connectready) (co-lock 'connectready 'low) (coio-ready))
     (#t 
       (let ([v (hashtable-ref fds (car connectready) #f)])
         (set! connectready (cdr connectready))
@@ -132,7 +132,7 @@
     (assert (not (= tfd -1)))
     (epoll-add epfd tfd '(EPOLLIN EPOLLET) ev)
     (hashtable-set! timerl tfd #t)
-    (co-lock tfd)
+    (co-lock tfd 'low)
     (hashtable-delete! timerl tfd)
     (close tfd)))
   
@@ -143,7 +143,7 @@
     (hashtable-set! timerl tfd 'active)
     (co-thunk 
       (lambda () 
-        (co-lock tfd) 
+        (co-lock tfd 'low) 
         (if (eq? 'active (hashtable-ref timerl tfd #f)) (fx))
         (hashtable-delete! timerl tfd)
         (close tfd)))
@@ -197,7 +197,7 @@
             #vu8()))))))
           
 
-(define (coio-send dest msg)
+(define (coio-send dest msg prio)
   (let* ([fd (hashtable-ref hosts (aget 'host dest) '())]
          [out (encapsulate msg)])
     (cond
@@ -207,11 +207,11 @@
             #f)
           (#t 
             (coio-connect dest) 
-            (coio-send dest msg))))
+            (coio-send dest msg prio))))
       ((hashtable-ref fds-send-buffer (car fd) #f) 
-        ;(printf "send lock~%")
-        (co-lock (car fd))
-        (coio-send dest msg))
+        (printf "send lock~%")
+        (co-lock (car fd) prio)
+        (coio-send dest msg prio))
       (#t 
         ;(printf "~a will send ~a bytes to ~a (fd ~a)~%" hostaddr (bytevector-length out) (aget 'host dest) (car fd))
         (hashtable-set! fds-send-buffer (car fd) out)
@@ -223,7 +223,9 @@
 
 (define (coio-recv) 
   (cond
-    ((null? fdrecv) (co-lock 'recv) (coio-recv))
+    ((null? fdrecv) 
+      (co-lock 'recv 'low) 
+      (coio-recv))
     (#t
       (let* ([fd (car fdrecv)]
              [msg (hashtable-ref fds-recv-buffer fd #f)]

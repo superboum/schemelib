@@ -28,13 +28,16 @@
 (define (co-thunk f)
   (co-add (lambda () (f) (co-end))))
 
-(define (co-lock lname)
+(define (co-lock lname prio)
   (call/cc
     (lambda (k)
       (hashtable-update! 
         locked 
         lname 
-        (lambda (v) (cons (lambda () (k #f)) v))
+        (lambda (v) 
+          (cond
+            ((eq? prio 'high) (cons (lambda () (k #f)) v))
+            ((eq? prio 'low) (append v (list (lambda () (k #f)))))))
         '())
       (co-start)
 )))
