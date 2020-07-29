@@ -227,7 +227,7 @@
 (define (chunk-read fd len)
   (let* ([r (recv fd coiobv len 'MSG_DEFAULT)]
          [bv (make-bytevector (max r 0))])
-    (printf "~a read ~a bytes (~a) from ~a (~a fd)~%" hostaddr r (iostatus r) (hashtable-ref fds fd #f)  fd)
+    ;(printf "~a read ~a bytes (~a) from ~a (~a fd)~%" hostaddr r (iostatus r) (hashtable-ref fds fd #f)  fd)
     (bytevector-copy! coiobv 0 bv 0 (bytevector-length bv))
     (values (iostatus r) r bv)))
 
