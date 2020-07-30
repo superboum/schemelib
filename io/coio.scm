@@ -2,7 +2,6 @@
 (define ev #f)
 (define events #f)
 (define max-events #f)
-(define fdrecv '())
 (define listen-sock #f)
 (define reco-sock #f)
 (define hostaddr #f)
@@ -77,7 +76,8 @@
   (hashtable-set! pristine (car client) #t)
   (hashtable-set! fds (car client) (cadr client))
   (hashtable-update! hosts (cadr client) (lambda (v) (cons (car client) v)) '())
-  (epoll-add epfd (car client) '(EPOLLRDHUP EPOLLIN EPOLLOUT EPOLLET) ev))
+  (epoll-add epfd (car client) '(EPOLLRDHUP EPOLLIN EPOLLOUT EPOLLET) ev)
+  (car client))
 
 (define (coio-handle-pristine fd)
   (hashtable-delete! pristine fd)
@@ -116,11 +116,12 @@
       (printf "~a has no more fd, put in host list to reopen~%" host) 
       (set! sendbroken (append sendbroken (list host)))))
     (hashtable-set! hosts host newregfd))
-  (set! fdrecv (filter (lambda (cfd) (not (= cfd fd))) fdrecv))
   (hashtable-delete! fds fd)
   (hashtable-delete! pristine fd)
   (hashtable-delete! fds-recv-buffer fd)
   (hashtable-delete! fds-send-buffer fd)
+  (set! epollfdtoread (filter (lambda (v) (not (= v fd))) epollfdtoread))
+  (set! epollfdtosend (filter (lambda (v) (not (= v fd))) epollfdtosend))
   (co-unlock fd)
   (epoll-del epfd fd ev)
   (close fd))
@@ -130,20 +131,39 @@
   (cond
     ((<= time 0) #t)
     (#t
-      (co-lock 'timer 'low)
+      (co-lock 'timers 'low)
       (coio-sleep (- time 1)))))
-  
-(define (coio-interval time fx repeat?)
-  (let ([stop? #f])
-    (co-thunk (lambda ()
-      (let f ([rem time]) 
-        (cond
-          (stop? #t)
-          ((<= rem 0) (fx) (if repeat? (f time)))
-          (#t (co-lock 'timer 'low) (f (- rem 1)))))))
-    (lambda () (set! stop? #t))))
 
-(define (coio-timer time fx) (coio-interval time fx #f))
+(define coiotimerid 0)
+(define (get-coio-timer-id)
+  (set! coiotimerid (+ coiotimerid 1))
+  coiotimerid)
+(define coiotimercb (make-eq-hashtable))
+(define (coio-timer time fx)
+  (let ([thistimer (get-coio-timer-id)])
+    (hashtable-set! coiotimercb thistimer fx)
+    (co-thunk
+      (lambda ()
+        (let f ([rem time])
+          (cond
+            ((not (hashtable-ref coiotimercb thistimer #f))
+              ;(printf "timer ~a deleted~%" thistimer)
+              (co-end))
+            ((<= rem 0)
+              ;(printf "timer ~a expired without being deleted~%" thistimer)
+              ((hashtable-ref coiotimercb thistimer "this str should never be returned"))
+              (hashtable-delete! coiotimercb thistimer)
+               (co-end))
+           (#t
+              ;(printf "timer ~a ticking (~a)~%" thistimer rem)
+              (co-lock 'timers 'low)
+              (f (- rem 1)))))))
+    thistimer))
+
+(define (coio-timer-cancel thistimer) 
+  ;(printf "timer cancelled ~a~%" thistimer)
+  (hashtable-delete! coiotimercb thistimer))
+
 
 ; handle send here
 (define fds-send-buffer (make-eq-hashtable))
@@ -156,42 +176,50 @@
     (bytevector-copy! msg 0 out 2 mlen)
     out))
 
+(define (send-buff-multiplex)
+  (if
+    (some (lambda (fd) (send-buff fd)) (vector->list (hashtable-keys fds-send-buffer)))
+    (send-buff-multiplex)))
+
 (define (send-buff fd)
-  (let ([buff (hashtable-ref fds-send-buffer fd #f)])
+  (let ([buff (hashtable-ref fds-send-buffer fd '())])
     (cond 
-      ((not buff) #t)
+      ((null? buff) #f) ; can't send
       (#t
-        (let ([r (send fd buff (bytevector-length buff) 'MSG_DEFAULT)])
+        (let ([r (send fd (car buff) (bytevector-length (car buff)) 'MSG_DEFAULT)])
           (case (iostatus r)
-           ((not-ready)  #t)
+           ((not-ready) #f) ; can't send
            ((fatal) (coio-fd-broken fd))
            ((ok)
              ;(printf "sent ~a bytes to ~a fd~%" r fd)
              (let* 
-               ([remlen (- (bytevector-length buff) r)]
+               ([remlen (- (bytevector-length (car buff)) r)]
                 [rem (make-bytevector remlen)])
               (cond
                 ((= remlen 0)
-                  (hashtable-delete! fds-send-buffer fd)
-                  (co-unlock fd))
+                  (cond
+                    ((null? (cdr buff))
+                      (hashtable-delete! fds-send-buffer fd)
+                      #f) ; can't send anymore
+                    (#t
+                      (hashtable-update! fds-send-buffer fd (lambda (lout) (cdr lout)) '())
+                      #t))) ; still some data to send
                 (#t
-                  (bytevector-copy! buff r rem 0 remlen)
-                  (hashtable-set! fds-send-buffer fd rem)
-                  (send-buff fd)))))))))))
+                  (bytevector-copy! (car buff) r rem 0 remlen)
+                  (hashtable-update! fds-send-buffer fd (lambda (lout) (cons rem (cdr lout))) '())
+                  #t)))))))))) ; still some data to send
         
 (define (coio-congestion dest)
   (let ([fd (hashtable-ref hosts (aget 'host dest) '())])
     (cond
       ((null? fd) +inf.0)
       (#t
-        (bytevector-length
-          (hashtable-ref 
-            fds-send-buffer 
-            (car fd) 
-            #vu8()))))))
+        (length (hashtable-ref fds-send-buffer (car fd) '()))))))
           
 
 (define (coio-send dest msg prio)
+  ;(printf "sent a message~%") 
+  (co-pause)
   (let* ([fd (hashtable-ref hosts (aget 'host dest) '())]
          [out (encapsulate msg)])
     (cond
@@ -202,35 +230,50 @@
           (#t 
             (coio-connect dest) 
             (coio-send dest msg prio))))
-      ((hashtable-ref fds-send-buffer (car fd) #f) 
-        (printf "send lock ~a~%" fd)
-        (co-lock (car fd) prio)
+      ((and (not (null? (hashtable-ref fds-send-buffer (car fd) '()))) (eq? prio 'low))
+        (printf "send lock app ~a~%" (car fd))
+        (co-lock 'epoll prio)
+        (coio-send dest msg prio))
+      ((not (less-than (hashtable-ref fds-send-buffer (car fd) '()) 50))
+        (printf "send lock relay ~a~%" (car fd))
+        (co-lock 'epoll prio)
         (coio-send dest msg prio))
       (#t 
         ;(printf "~a will send ~a bytes to ~a (fd ~a)~%" hostaddr (bytevector-length out) (aget 'host dest) (car fd))
-        (hashtable-set! fds-send-buffer (car fd) out)
-        (send-buff (car fd))))))
+        (hashtable-update! fds-send-buffer (car fd) (lambda (lout) (append lout (list out))) '())
+        (send-buff-multiplex)))))
 
 ; handle recv here
 (define coiobv (make-bytevector (expt 2 16)))
 (define fds-recv-buffer (make-eq-hashtable))
 
-(define (coio-recv) 
-  (cond
-    ((null? fdrecv) 
-      (co-lock 'recv 'low) 
-      (coio-recv))
-    (#t
-      (let* ([fd (car fdrecv)]
-             [msg (hashtable-ref fds-recv-buffer fd #f)]
-             [client (hashtable-ref fds fd #f)])
-        (assert (and msg (eq? 'full (car msg))))
-        (assert client)
-        (set! fdrecv (cdr fdrecv))
-        (hashtable-delete! fds-recv-buffer fd)
-        (read-buff fd)
-        (values `((host . ,client) (idx . ,(ip->idx client))) (cadr msg))
-))))
+(define (last-from-list l)
+  (let lfl ([liter l] [newl '()])
+    (cond
+      ((null? liter) (values #f #f))
+      ((null? (cdr liter)) (values (car liter) (reverse newl)))
+      (#t (lfl (cdr liter) (cons (car liter) newl))))))
+
+(define (nfo-pick fd)
+  (let-values ([(msg rest) (last-from-list (hashtable-ref fds-recv-buffer fd '()))])
+    (cond
+      ((not msg) #f)
+      ((eq? (car msg) 'filling) #f)
+      (#t
+        (hashtable-set! fds-recv-buffer fd (if (null? rest) '((filling)) rest))
+        ;(printf "new nfo (pick): ~a~%" rest)
+        msg))))
+
+
+(define (coio-recv)
+  (co-pause)
+  (let*-values ([(fd msg) (read-buff-multiplex)]
+                [(client) (hashtable-ref fds fd hostaddr)])
+    (cond
+      ((not fd) (co-lock 'epoll 'low) (coio-recv))
+      (#t 
+        ;(printf "returned a message~%") 
+        (values `((host . ,client) (idx . ,(ip->idx client))) msg)))))
 
 (define (chunk-read fd len)
   (let* ([r (recv fd coiobv len 'MSG_DEFAULT)]
@@ -241,46 +284,73 @@
 
 (define (nfo-remaining nfo)
   (cond 
-    ((null? (cdr nfo)) 2)
+    ((null? nfo) 2)
+    ((and (null? (cdr nfo)) (< (bytevector-length (car nfo)) 2)) 1)
     (#t
       (-
-       (bytevector-u16-ref (cadr nfo) 0 'little)
-       (fold-left (lambda (acc v) (+ acc (bytevector-length v))) 0 (cdr nfo))))))
+       (bytevector-u16-ref (car nfo) 0 'little)
+       (fold-left (lambda (acc v) (+ acc (bytevector-length v))) 0 nfo)))))
 
 (define (nfo-aggregate nfo)
-  (let ([res (make-bytevector (- (bytevector-u16-ref (cadr nfo) 0 'little) 2))])
+  (let ([res (make-bytevector (- (bytevector-u16-ref (car nfo) 0 'little) 2))])
     (fold-left 
       (lambda (ptr v) 
         (bytevector-copy! v 0 res ptr (bytevector-length v))
         (+ ptr (bytevector-length v))) 
       0
-      (cddr nfo))
+      (cdr nfo))
     res))
 
-(define (build-nfo fd nfo)
+(define read-queue '())
+(define (read-buff-multiplex)
   (cond
-    ((eq? 'full (car nfo)) nfo)
-    (#t
-      (let ([remaining (nfo-remaining nfo)])
+    ((null? read-queue) (values #f #f)) ; exhausted
+    (#t 
+      (let* ([fd (car read-queue)]
+             [pkt (read-buff fd)])
         (cond
-          ((= remaining 0) 
-            (set! fdrecv (append fdrecv (list fd)))
-            (co-unlock 'recv)
-            `(full ,(nfo-aggregate nfo)))
+          (pkt 
+             (set! read-queue (append (cdr read-queue) (list (car read-queue))))
+             (values fd pkt))
           (#t
-            (let-values ([(status nread data) (chunk-read fd remaining)])
-              (cond
-                ((eq? status 'not-ready)  nfo)
-                ((eq? status 'ok) (build-nfo fd (append nfo (list data))))
-                ((eq? status 'fatal) (coio-fd-broken fd) '(filling))))))))))
+            (set! read-queue (cdr read-queue))
+            (read-buff-multiplex)))))))
+
 (define (read-buff fd)
-  (hashtable-update!
-    fds-recv-buffer
-    fd
-    (lambda (nfo) (build-nfo fd nfo))
-    '(filling)))
+  (let* ([nfo (hashtable-ref fds-recv-buffer fd '())] [remaining (nfo-remaining nfo)])
+    (cond
+      ((= remaining 0) 
+        (hashtable-delete! fds-recv-buffer fd)
+        ; here we have a new packet for our very special user <3
+        (nfo-aggregate nfo))
+      (#t
+        (let-values ([(status nread data) (chunk-read fd remaining)])
+          (cond
+            ((or (eq? status 'not-ready) (= nread 0))  
+              ; we exhauted a file descriptor, we can stop watching it, hourra!
+              #f)
+            ((eq? status 'ok) 
+              (hashtable-set! 
+                fds-recv-buffer 
+                fd 
+                (append nfo (list data)))
+              ; we can't take any decision here, restarting the process
+              (read-buff fd))
+            ((eq? status 'fatal) 
+              (coio-fd-broken fd) 
+              ; here we did not read anything
+              #f)))))))
+
+(define (coio-reco-loop)
+  (coio-timer 
+    10 
+    (lambda () 
+      (coio-reconnect) 
+      (coio-reco-loop))))
 
 ; handle main loop here
+(define epollfdtoread '())
+(define epollfdtosend '())
 (define (coio-event-loop host)
   (set! hostaddr host)
   (let*-values 
@@ -298,16 +368,20 @@
     (set! events events2)
     (set! max-events max-events2))
 
-  (coio-interval 10 (lambda () (coio-reconnect)) #t)
-
+  ;(coio-reco-loop)
   (co-thunk (lambda () 
-    (let f ()
+    (let f () 
+      (set! read-queue (vector->list (hashtable-keys fds)))
+      (co-unlock-all 'epoll)
       (co-flush) ; exhaust all coroutines before looping
-      (for-each (lambda (ffd) (read-buff ffd)) (vector->list (hashtable-keys fds)))
-      (for-each (lambda (ffd) (send-buff ffd)) (vector->list (hashtable-keys fds)))
+      ;(for-each (lambda (ffd) (send-buff ffd)) (vector->list (hashtable-keys fds)))
       ;(printf "tosend: ~a~%" (hashtable-keys fds-send-buffer))
       ;(printf "recv: ~a~%" (hashtable-values fds-recv-buffer))
       ;(printf "locked: ~a~%" (hashtable-keys locked))
+      ;(printf "epoll~%")
+
+      ;(set! epollfdtoread '())
+      ;(set! epollfdtosend '())
       (for-each 
         (lambda (evt)
           ;(printf "evt: ~a~%" evt)
@@ -323,20 +397,17 @@
             ; the general timer that handle all timers
             ((= (car evt) reco-sock)
              (nb-timer-ack (car evt))
-             (co-unlock-all 'timer))
- 
+             (co-unlock-all 'timers))
 
             ; handle IO
-            (#t
-              (cond ((epoll-evt? evt 'EPOLLIN)
-                ;(printf "READ RDY ~a~%" (car evt))
-                (if (hashtable-ref pristine (car evt) #f) (coio-handle-pristine (car evt)))
-                (read-buff (car evt))))
+            ;(#t
+              ;(cond ((epoll-evt? evt 'EPOLLIN)
+                ;(set! epollfdtoread (append epollfdtoread (list (car evt))))
+                ;(co-unlock-all (car evt))))
  
-              (cond ((epoll-evt? evt 'EPOLLOUT)
-                ;(printf "WRITE RDY ~a~%" (car evt))
-                (if (hashtable-ref pristine (car evt) #f) (coio-handle-pristine (car evt)))
-                (send-buff (car evt)))))
+              ;(cond ((epoll-evt? evt 'EPOLLOUT)
+                ;(set! (append epollfdtosend (list (car evt))))
+                ;(co-unlock-all (car evt)))))
         ))
         (epoll-wait epfd events max-events -1))
       (f)))))
