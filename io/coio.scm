@@ -105,9 +105,11 @@
     (#t
       (printf "reconnecting ~a~%" (car sendbroken))
       (coio-connect `((host . ,(car sendbroken))))
-      (set! sendbroken (cdr sendbroken)))))
+      (set! sendbroken (cdr sendbroken))
+      (coio-reconnect))))
       
 (define (coio-fd-broken fd)
+  (cond ((hashtable-ref fds fd #f)
   (printf "~a fd is broken~%" fd)
   (let* ([host (hashtable-ref fds fd #f)]
          [newregfd (filter (lambda (v) (not (= v fd))) (hashtable-ref hosts host '())) ])
@@ -120,11 +122,9 @@
   (hashtable-delete! pristine fd)
   (hashtable-delete! fds-recv-buffer fd)
   (hashtable-delete! fds-send-buffer fd)
-  (set! epollfdtoread (filter (lambda (v) (not (= v fd))) epollfdtoread))
-  (set! epollfdtosend (filter (lambda (v) (not (= v fd))) epollfdtosend))
   (co-unlock fd)
   (epoll-del epfd fd ev)
-  (close fd))
+  (close fd))))
 
 ; timers
 (define (coio-sleep time)
