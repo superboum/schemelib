@@ -210,11 +210,11 @@
                   #t)))))))))) ; still some data to send
         
 (define (coio-congestion dest)
+  ;(printf "dest: ~a~%" dest)
   (let ([fd (hashtable-ref hosts (aget 'host dest) '())])
     (cond
       ((null? fd) +inf.0)
-      (#t
-        (length (hashtable-ref fds-send-buffer (car fd) '()))))))
+      (#t (length (hashtable-ref fds-send-buffer (car fd) '()))))))
           
 
 (define (coio-send dest msg prio)
