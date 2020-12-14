@@ -1,5 +1,8 @@
-(source-directories '("." ".."))
-(include "schemelib.scm")
+(source-directories '("." "../.."))
+(import
+  (schemelib bindings libc epoll)
+  (schemelib bindings libc network)
+  (schemelib bindings libc fd))
 
 ; tests
 (define (test-epoll)

@@ -1,4 +1,8 @@
-(load-shared-object "libsodium.so.23")
+(define sodium-path "libsodium.so.23")
+(if 
+	(file-exists? sodium-path)
+  (load-shared-object sodium-path)
+	(printf "[sodium] ~a not found, not loading lib" sodium-path))
 
 (define (sodium_init)
   ((foreign-procedure "sodium_init" () int)))

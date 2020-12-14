@@ -1,5 +1,11 @@
-(load-shared-object "libSDL2-2.0.so.0")
-(load-shared-object "libSDL2_image-2.0.so.0")
+(define (cdl-load name path)
+  (if 
+	  (file-exists? path)
+    (load-shared-object path)
+	  (printf "[~a] ~a not found, not loading lib" name path)))
+
+(cdl-load "SDL2" "libSDL2-2.0.so.0")
+(cdl-load "SDL2_image" "libSDL2_image-2.0.so.0")
 
 ; A quick example:
 ; https://stackoverflow.com/questions/20579658/how-to-draw-pixels-in-sdl-2-0
