@@ -11,6 +11,15 @@
       (#t (step r (marker-finder step not-found found port marker marker)))
 )))
 
+(define (read-int port)
+  (let [(nchar (string->list "0123456789"))]
+    (string->number 
+      (list->string 
+	(let f () 
+          (cond 
+            ((memv (peek-char port) nchar) (cons (get-char port) (f)))
+            (#t '())))))))
+
 (define (read-until port marker)
   (list->string 
     (marker-finder
