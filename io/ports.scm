@@ -3,7 +3,7 @@
     read-int
     read-until
     seek-until)
-  (import (chez-scheme))
+  (import (chezscheme))
 
   (define (marker-finder step not-found found port marker remaining)
     (let [(r (get-char port))]

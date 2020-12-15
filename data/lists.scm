@@ -1,4 +1,4 @@
-(library (schemelib data-structures lists)
+(library (schemelib data lists)
   (export
     values->list
     nth rangeinc less-than
@@ -6,7 +6,7 @@
     for beginning unit
     aget aset dedup
     dedup<=? some every zip)
-  (import (chez-scheme))
+  (import (chezscheme))
 
   (define (values->list fx) (let-values [(r (fx))] r))
 

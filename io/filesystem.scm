@@ -3,7 +3,7 @@
     build-path
     walk-rec
     walk)
-  (import (chez-scheme))
+  (import (chezscheme))
 
   (define (build-path p1 p2)
     (format "~a~a~a" p1 (directory-separator) p2))

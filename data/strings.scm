@@ -1,9 +1,9 @@
-(library (schemelib data-structures strings)
+(library (schemelib data strings)
   (export
     string-suffix?
     string-prefix?
     string-contains?)
-  (import (chez-scheme))
+  (import (chezscheme))
 
   (define (string-suffix? src suffix)
     (let [(src-len (string-length src)) (suf-len (string-length suffix))]
