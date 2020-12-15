@@ -3,7 +3,9 @@
     string-suffix?
     string-prefix?
     string-contains?)
-  (import (chezscheme))
+  (import 
+    (schemelib io ports)
+    (chezscheme))
 
   (define (string-suffix? src suffix)
     (let [(src-len (string-length src)) (suf-len (string-length suffix))]
